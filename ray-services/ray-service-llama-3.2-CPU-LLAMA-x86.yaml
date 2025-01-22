@@ -1,0 +1,219 @@
+apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  name: llama-3-8b-cpu-llama
+spec:
+  serveConfigV2: |
+    applications:
+    - name: llmcpp-intel
+      route_prefix: /
+      import_path: serve-llama-arm:model
+      deployments:
+      - name: LLamaCPPDeployment
+        # max_ongoing_requests: 20
+        # autoscaling_config:
+        #       metrics_interval_s: 0.2
+        #       min_replicas: 1
+        #       max_replicas: 4
+        #       look_back_period_s: 2
+        #       downscale_delay_s: 600
+        #       upscale_delay_s: 30
+        #       target_num_ongoing_requests_per_replica: 20
+        # graceful_shutdown_timeout_s: 50
+        # max_concurrent_queries: 100
+        # ray_actor_options:
+        #   num_cpus: 13
+        #   max_concurrency: 13
+
+      runtime_env:
+        working_dir: "https://github.com/ddynwzh1992/ray-llm/archive/refs/heads/main.zip"
+        # working_dir: "https://github.com/masoodfaisal/llm-ray-serve/archive/refs/heads/main.zip"
+        # working_dir: "https://gitlab.aws.dev/wangaws/llama-cpp-serve-graviton/-/archive/main/llama-cpp-serve-graviton-main.zip"
+        pip: ["llama_cpp_python", "transformers==4.46.0"]
+        env_vars:
+          LD_LIBRARY_PATH: "/home/ray/anaconda3/lib:$LD_LIBRARY_PATH"
+          MODEL_ID: "bartowski/Llama-3.2-1B-Instruct-GGUF"
+          MODEL_FILENAME: "Llama-3.2-1B-Instruct-Q4_0.gguf"
+          N_CTX: "0"
+          CMAKE_ARGS: "-DCMAKE_CXX_FLAGS=-fopenmp"
+          FORCE_CMAKE: "1"
+          CMAKE_CXX_COMPILER: "/usr/bin/g++"  
+          CMAKE_C_COMPILER: "/usr/bin/gcc"  
+          CXX: "/usr/bin/g++"  
+          CC: "/usr/bin/gcc" 
+          N_THREADS: "14"
+          PYTHONPATH: "/home/ray/anaconda3/lib/python3.11/site-packages:$PYTHONPATH" 
+  # serveConfigV2: |
+  #   applications:
+  #   - name: llm
+  #     route_prefix: /
+  #     import_path: ray-operator.config.samples.vllm.serve-llama:model
+  #     deployments:
+  #     - name: LLamaCPPDeployment
+  #       num_replicas: 1
+  #       max_replicas_per_node: 1
+  #       ray_actor_options:
+  #         num_cpus: 12
+  #         max_concurrency: 8
+  #     runtime_env:
+  #       # working_dir: "https://github.com/ray-project/kuberay/archive/master.zip"
+  #       working_dir: "https://github.com/masoodfaisal/kuberay/archive/master.zip"
+  #       pip: ["llama_cpp_python==0.3.1", "transformers==4.46.0"]
+  #       env_vars:
+  #         MODEL_ID: "Qwen/Qwen2-0.5B-Instruct-GGUF"
+  #         N_CTX: "64"
+  #         N_BATCH: "1"
+
+  rayClusterConfig:
+    rayVersion: '2.39.0'
+    enableInTreeAutoscaling: true
+
+    headGroupSpec:
+      rayStartParams:
+        dashboard-host: '0.0.0.0'
+        num-cpus: '0'
+      template:
+        metadata:
+          labels:
+            ray-control-plane: "true"
+
+        spec:
+          # nodeSelector:
+          #   ray-control-plane: "true"
+          tolerations:
+            - key: "ray-control-plane"
+              operator: "Equal"
+              value: "true"
+              effect: "NoSchedule"
+          # affinity:
+          #   nodeAffinity:
+          #     requiredDuringSchedulingIgnoredDuringExecution:
+          #       nodeSelectorTerms:
+          #         - matchExpressions:
+          #             - key: ray-control-plane
+          #               operator: In
+          #               values:
+          #                 - "true"
+
+          restartPolicy: Always
+          containers:
+          - name: ray-head
+            image: 370393745105.dkr.ecr.ap-southeast-2.amazonaws.com/fm-vllm-cpu-py:3.11-llamacpp-intel-optimized-v4
+            # image: 370393745105.dkr.ecr.ap-southeast-2.amazonaws.com/fm-vllm-cpu-py:3.11-llamacpp
+            resources:
+              limits:
+                cpu: "4"
+                memory: "12Gi"
+              requests:
+                cpu: "4"
+                memory: "12Gi"
+            ports:
+            - containerPort: 6379
+              name: gcs-server
+            - containerPort: 8265
+              name: dashboard
+            - containerPort: 10001
+              name: client
+            - containerPort: 8000
+              name: serve
+            env:
+            # - name: VLLM_TARGET_DEVICE
+            #   value: "cpu"
+            # - name: VLLM_CPU_KVCACHE_SPACE
+            #   value: "20"
+            # - name: VLLM_RPC_TIMEOUT
+            #   value: "100000"     
+            - name: HUGGING_FACE_HUB_TOKEN
+              value: "VVVVVV"
+            - name: RAY_enable_autoscaler_v2
+              value: "1"
+            - name: RAY_num_heartbeats_timeout  
+              value: "300"
+            - name: RAY_heartbeat_timeout_milliseconds
+              value: "1000"  
+
+
+
+            # - name: VLLM_ATTENTION_BACKEND
+            #   value: "TORCH_SDPA"  
+
+              # valueFrom:
+              #   secretKeyRef:
+              #     name: hf-secret
+              #     key: hf_api_token
+    workerGroupSpecs:
+    - replicas: 10
+      minReplicas: 10
+      maxReplicas: 10
+      groupName: cpu-group
+      rayStartParams:
+        num-cpus: '14'
+
+      template:
+        spec:
+          # nodeSelector:
+          #   ray-control-plane: "false"
+          #   model-inferencing: "cpu"
+          tolerations:
+            - key: "model-inferencing"
+              operator: "Equal"
+              value: "cpu"
+              effect: "NoSchedule"
+
+          # affinity:
+          #   nodeAffinity:
+          #     requiredDuringSchedulingIgnoredDuringExecution:
+          #       nodeSelectorTerms:
+          #         - matchExpressions:
+          #             - key: model-inferencing
+          #               operator: In
+          #               values:
+          #                 - "cpu"            
+
+
+          restartPolicy: Always
+          containers:
+          - name: llm
+            image: 370393745105.dkr.ecr.ap-southeast-2.amazonaws.com/fm-vllm-cpu-py:3.11-llamacpp-intel-optimized-v4
+            # image: 370393745105.dkr.ecr.ap-southeast-2.amazonaws.com/fm-vllm-cpu-py:3.11-llamacpp
+            env:
+            # - name: HUGGING_FACE_HUB_TOKEN
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: hf-secret
+            #       key: hf_api_token
+            - name: HUGGING_FACE_HUB_TOKEN
+              value: "XXXXXXXXXXX"
+            # - name: VLLM_TARGET_DEVICE
+            #   value: "cpu"
+            # - name: VLLM_CPU_KVCACHE_SPACE
+            #   value: "8"
+            # - name: VLLM_RPC_TIMEOUT
+            #   value: "100000"     
+            - name: RAY_num_heartbeats_timeout  
+              value: "300"
+            - name: RAY_heartbeat_timeout_milliseconds
+              value: "1000"  
+            # - name: VLLM_ATTENTION_BACKEND
+            #   value: "TORCH_SDPA"  
+
+
+            # ports:
+            # - containerPort: 8000
+            #   name: serve
+
+            resources:
+              limits:
+                cpu: "15"
+                memory: "24Gi"
+                # nvidia.com/gpu: "2"
+              requests:
+                cpu: "15"
+                memory: "24Gi"
+                # nvidia.com/gpu: "2"
+
+          # Please add the following taints to the GPU node.
+            # tolerations:
+            #   - key: "nvidia.com/gpu"
+            #     operator: "Exists"
+            #     effect: "NoSchedule"

@@ -1,0 +1,51 @@
+# FROM rayproject/ray:nightly-py311-cpu
+
+FROM rayproject/ray:2.39.0-py312-cpu-aarch64
+
+USER root
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
+    ninja-build \
+    cmake \
+    libopenblas-dev \
+    build-essential \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/*
+
+USER ray     
+RUN python3 -m pip install --upgrade pip
+
+RUN python3 -m pip install --upgrade pip pytest cmake scikit-build setuptools fastapi uvicorn sse-starlette pydantic-settings starlette-context
+ENV FORCE_CMAKE=1
+# ENV CMAKE_ARGS="-DCMAKE_CXX_FLAGS=-fopenmp"
+RUN CMAKE_ARGS="-DCMAKE_CXX_FLAGS='-mcpu=native -fopenmp' -DCMAKE_C_FLAGS='-mcpu=native -fopenmp'" python3 -m pip install llama-cpp-python --verbose
+
+    
+
+# RUN VLLM_TARGET_DEVICE=cpu pip3 install vllm==0.5.4  --extra-index-url https://download.pytorch.org/whl/cpu
+
+# RUN pip3 install torchvision==0.19.1+cpu --extra-index-url https://download.pytorch.org/whl/cpu
+# RUN pip3 install torch==2.4.1+cpu --extra-index-url https://download.pytorch.org/whl/cpu
+# RUN pip3 install 'https://github.com/vllm-project/vllm' --extra-index-url https://download.pytorch.org/whl/cpu
+
+# RUN pip3 install pyarrow
+# --extra-index-url https://download.pytorch.org/whl/cpu
+    # PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu \
+    # pip install https://github.com/vllm-project/vllm
+
+# FROM rayproject/ray:2.33.0-py311-cu121
+# FROM rayproject/ray:2.33.0-py311-cpu
+# RUN conda install pytorch-cpu torchvision-cpu -c pytorch
+# RUN pip3 install vllm 
+# RUN pip3 install huggingface-hub
+
+# RUN pip3 install torch
+# ==2.5.1+cpu --extra-index-url https://download.pytorch.org/whl/cpu
+# RUN pip3 install torchaudio==2.5.1+cpu --extra-index-url https://download.pytorch.org/whl/cpu
+
+# FROM rayproject/ray-ml:2.33.0.914af0-py311
+# ENV VLLM_RPC_TIMEOUT=100000
+# ENV VLLM_CPU_KVCACHE_SPACE=15
+# ENV VLLM_TARGET_DEVICE=cpu
+# ENV VLLM_CPU_OMP_THREADS_BIND=0-31
+
+# TODO: Install IPEX

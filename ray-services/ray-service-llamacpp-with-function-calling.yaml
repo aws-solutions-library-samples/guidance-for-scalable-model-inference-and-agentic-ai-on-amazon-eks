@@ -3,7 +3,7 @@ kind: Secret
 metadata:
   name: token
 stringData:
-  token: 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
+  token: Hugging Face User Access Token
   llm_api_key: sk-1234
 ---
 apiVersion: v1

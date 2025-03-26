@@ -7,8 +7,8 @@ import (
     "io/ioutil"
     "net/http"
     "strings"
-	"os"           // Add this import
-    "strconv" 
+    "os"
+    "strconv"
     "time"
 )
 
@@ -97,7 +97,7 @@ func makeRequest(config RequestConfig, results chan<- Result) {
     }
 
     client := &http.Client{
-        Timeout: 30 * time.Second,
+        Timeout: 60 * time.Second, // Increased timeout to 60 seconds
     }
     
     req, err := http.NewRequest("POST", config.URL, bytes.NewBuffer(jsonData))
@@ -109,7 +109,6 @@ func makeRequest(config RequestConfig, results chan<- Result) {
     req.Header.Set("Content-Type", "application/json")
     req.Header.Set("Accept", "application/json")
     
-    // Reset timer immediately before the request
     start := time.Now()
     
     resp, err := client.Do(req)
@@ -120,8 +119,6 @@ func makeRequest(config RequestConfig, results chan<- Result) {
     defer resp.Body.Close()
     
     body, err := ioutil.ReadAll(resp.Body)
-    
-    // Calculate duration immediately after reading the response body
     duration := time.Since(start)
     
     if err != nil {
@@ -150,7 +147,7 @@ func makeRequest(config RequestConfig, results chan<- Result) {
     }
 }
 
-func calculateAverageResponseTime(config RequestConfig, numRequests int) (time.Duration, float64, error) {
+func calculateAverageResponseTime(config RequestConfig, numRequests int) (time.Duration, float64, int, error) {
     results := make(chan Result, numRequests)
     
     for i := 0; i < numRequests; i++ {
@@ -161,11 +158,13 @@ func calculateAverageResponseTime(config RequestConfig, numRequests int) (time.D
     var totalDuration time.Duration
     var totalTokens int
     var successfulRequests int
+    var errors []error
     
     for i := 0; i < numRequests; i++ {
         result := <-results
         if result.err != nil {
             fmt.Printf("Request error: %v\n", result.err)
+            errors = append(errors, result.err)
             continue
         }
         totalDuration += result.duration
@@ -177,13 +176,13 @@ func calculateAverageResponseTime(config RequestConfig, numRequests int) (time.D
     }
     
     if successfulRequests == 0 {
-        return 0, 0, fmt.Errorf("no successful requests")
+        return 0, 0, 0, fmt.Errorf("no successful requests (HTTP 200). Errors: %v", errors)
     }
     
     avgDuration := totalDuration / time.Duration(successfulRequests)
     tokensPerSecond := float64(totalTokens) / totalDuration.Seconds()
     
-    return avgDuration, tokensPerSecond, nil
+    return avgDuration, tokensPerSecond, successfulRequests, nil
 }
 
 func warmup(config RequestConfig, numWarmupRequests int) error {
@@ -216,9 +215,7 @@ func warmup(config RequestConfig, numWarmupRequests int) error {
     return nil
 }
 
-
 func main() {
-    // Start timing the entire benchmark
     benchmarkStart := time.Now()
 
     prompts, err := readPromptsFromFile("prompts.txt")
@@ -227,24 +224,19 @@ func main() {
         return
     }
 
-    // url := "http://localhost:8000/v1/chat/completions"
-    // requestsPerPrompt := 50
-    // numWarmupRequests := 3
-
-	// Read configuration from environment variables with defaults
     url := os.Getenv("URL")
     if url == "" {
-        url = "http://localhost:8000/v1/chat/completions" // default value
+        url = "http://localhost:8000/v1/chat/completions"
     }
 
-    requestsPerPrompt := 10 // default value
+    requestsPerPrompt := 10
     if envVal := os.Getenv("REQUESTS_PER_PROMPT"); envVal != "" {
         if val, err := strconv.Atoi(envVal); err == nil {
             requestsPerPrompt = val
         }
     }
 
-    numWarmupRequests := 3 // default value
+    numWarmupRequests := 3
     if envVal := os.Getenv("NUM_WARMUP_REQUESTS"); envVal != "" {
         if val, err := strconv.Atoi(envVal); err == nil {
             numWarmupRequests = val
@@ -275,6 +267,7 @@ func main() {
     var totalSuccessfulRequests int
     var overallTotalDuration time.Duration
     var overallTotalTokens int
+    totalPlannedRequests := len(prompts) * requestsPerPrompt
 
     fmt.Printf("\n=== Starting Benchmark Test ===\n")
     fmt.Printf("Start time: %v\n\n", time.Now().Format("2006-01-02 15:04:05"))
@@ -289,26 +282,24 @@ func main() {
         fmt.Printf("\n--- Prompt %d/%d ---\n", i+1, len(prompts))
         fmt.Printf("Prompt: %s\n", prompt)
             
-        avgTime, tokensPerSec, err := calculateAverageResponseTime(config, requestsPerPrompt)
+        avgTime, tokensPerSec, successfulRequestsForPrompt, err := calculateAverageResponseTime(config, requestsPerPrompt)
         if err != nil {
             fmt.Printf("Error calculating average: %v\n", err)
             continue
         }
 
-        promptTotalDuration := avgTime * time.Duration(requestsPerPrompt)
-        promptTotalTokens := int(tokensPerSec * avgTime.Seconds()) * requestsPerPrompt
+        promptTotalDuration := avgTime * time.Duration(successfulRequestsForPrompt)
+        promptTotalTokens := int(tokensPerSec * avgTime.Seconds()) * successfulRequestsForPrompt
         
         overallTotalDuration += promptTotalDuration
         overallTotalTokens += promptTotalTokens
-        totalSuccessfulRequests += requestsPerPrompt
+        totalSuccessfulRequests += successfulRequestsForPrompt
         
         fmt.Printf("Prompt Average Response Time: %v\n", avgTime)
-        fmt.Printf("Prompt Tokens per Second: %.2f\n\n", tokensPerSec)
-        
-        //time.Sleep(1 * time.Second)
+        fmt.Printf("Prompt Tokens per Second: %.2f\n", tokensPerSec)
+        fmt.Printf("Successful Requests for this prompt: %d/%d\n\n", successfulRequestsForPrompt, requestsPerPrompt)
     }
 
-    // Calculate total benchmark duration
     totalBenchmarkDuration := time.Since(benchmarkStart)
 
     if totalSuccessfulRequests > 0 {
@@ -318,15 +309,19 @@ func main() {
         fmt.Printf("\n=== Overall Benchmark Results ===\n")
         fmt.Printf("End time: %v\n", time.Now().Format("2006-01-02 15:04:05"))
         fmt.Printf("Total Benchmark Duration: %v\n", totalBenchmarkDuration)
-        fmt.Printf("Total Successful Requests: %d\n", totalSuccessfulRequests)
+        fmt.Printf("Total Successful Requests (HTTP 200): %d\n", totalSuccessfulRequests)
+        fmt.Printf("Failed Requests: %d\n", totalPlannedRequests-totalSuccessfulRequests)
+        fmt.Printf("Success Rate: %.2f%%\n", float64(totalSuccessfulRequests)/float64(totalPlannedRequests)*100)
         fmt.Printf("Overall Average Latency: %v\n", overallAvgLatency)
         fmt.Printf("Overall Average Tokens/Second: %.2f\n", overallTokensPerSec)
         
-        // Add detailed timing breakdown
         fmt.Printf("\n=== Timing Breakdown ===\n")
         fmt.Printf("Total wall clock time: %v\n", totalBenchmarkDuration)
         fmt.Printf("Total processing time: %v\n", overallTotalDuration)
         fmt.Printf("Overhead time (includes delays): %v\n", 
             totalBenchmarkDuration-overallTotalDuration)
+    } else {
+        fmt.Printf("\n=== Benchmark Failed ===\n")
+        fmt.Printf("No successful requests completed (HTTP 200)\n")
     }
 }

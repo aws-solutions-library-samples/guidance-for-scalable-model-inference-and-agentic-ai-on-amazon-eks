@@ -20,7 +20,7 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: llama-3-8b-cpu-llama-head-svc
+            name: ray-service-llamacpp-serve-svc
             port:
               number: 8000
 

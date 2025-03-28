@@ -112,6 +112,29 @@ kubectl get svc -n rayserve-vllm
 
 This solution supports building agentic AI applications that can leverage either CPU-based (llama.cpp) or GPU-based (vLLM) model inference backends. The agent architecture enables models to call external functions and services.
 
+### Understanding Agentic AI and Function Calling
+
+Agentic AI refers to AI systems that can act autonomously to achieve specific goals by making decisions and taking actions. In this solution, we implement agentic capabilities through function calling, which allows language models to:
+
+1. **Recognize when to use tools**: The model identifies when external data or capabilities are needed to fulfill a user request
+2. **Structure function calls**: The model generates properly formatted function calls with appropriate parameters
+3. **Process function results**: The model incorporates returned data into its responses
+
+Function calling enables models to bridge the gap between natural language understanding and external systems, allowing them to:
+
+- Access real-time information (like weather data in our example)
+- Perform calculations or data transformations
+- Interact with external APIs and services
+- Execute specific actions based on user requests
+
+Our implementation provides a framework where the model:
+- Parses user intent from natural language
+- Determines which function to call and with what parameters
+- Makes the API call through a dedicated service
+- Processes the returned information to generate a coherent response
+
+This approach significantly extends the capabilities of language models beyond their pre-trained knowledge, making them more useful for real-world applications.
+
 ### Deploying the Function Service
 
 #### 1. Configure the function service:

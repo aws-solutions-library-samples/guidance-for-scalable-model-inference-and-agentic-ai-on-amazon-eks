@@ -1,4 +1,4 @@
-# Cost effective and Scalable Model Inference on AWS Graviton with Ray on EKS
+# Cost effective and Scalable Model Inference and Agentic AI on AWS Graviton with Ray on EKS
 
 ## Overview
 The solution implements a scalable ML inference architecture using Amazon EKS, leveraging both Graviton processors for CPU-based inference and GPU instances for accelerated inference. The system utilizes Ray Serve for model serving, deployed as containerized workloads within a Kubernetes environment.

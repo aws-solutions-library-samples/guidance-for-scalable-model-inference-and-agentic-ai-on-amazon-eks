@@ -1,0 +1,84 @@
+---
+# https://karpenter.sh/docs/concepts/scheduling/
+# https://karpenter.sh/docs/concepts/nodepools/
+
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: cpu-head-vllm-function-call
+spec:
+  limits:
+    cpu: 64
+    memory: 128Gi
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 30s
+  template:
+    metadata:
+      labels:
+        ray-control-plane: "true"
+        function-calling: "enabled"
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: cpu-head-vllm-function-call
+      taints:
+        - key: "ray-control-plane"
+          value: "true"
+          effect: NoSchedule
+      expireAfter: 1h
+      requirements:
+        - key: karpenter.k8s.aws/instance-category
+          operator: In
+          values:
+            - m
+            - c
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+        - key: karpenter.k8s.aws/instance-size
+          operator: In
+          values: ["2xlarge", "4xlarge"]
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+        - key: karpenter.k8s.aws/instance-generation
+          operator: In
+          values: ["6", "7"]
+---
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: cpu-head-vllm-function-call
+spec:
+  kubelet:
+    podsPerCore: 2
+    maxPods: 20
+    systemReserved:
+      cpu: 100m
+      memory: 100Mi
+  subnetSelectorTerms:
+    - tags:
+        eksctl.cluster.k8s.io/v1alpha1/cluster-name: "llm-eks-cluster"
+
+  securityGroupSelectorTerms:
+    - tags:
+        eksctl.cluster.k8s.io/v1alpha1/cluster-name: "llm-eks-cluster"
+  amiFamily: "AL2023"
+  amiSelectorTerms:
+    - name: "amazon-eks-node-al2023-x86_64-standard-1.30-*"
+  role: "eksctl-llm-eks-cluster-nodegroup-n-NodeInstanceRole-y411lzob4Y8u"
+  tags:
+    ray-control-plane: "true"
+    function-calling: "enabled"
+  detailedMonitoring: true
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 100Gi
+        volumeType: gp3
+        iops: 10000
+        encrypted: false
+        deleteOnTermination: true
+        throughput: 256

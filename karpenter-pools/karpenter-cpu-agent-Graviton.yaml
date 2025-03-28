@@ -7,7 +7,7 @@
 apiVersion: karpenter.sh/v1
 kind: NodePool
 metadata:
-  name: cpu-inference-arm
+  name: karpenter-cpu-agent-Graviton
 spec:
   limits:
     cpu: 512
@@ -18,16 +18,16 @@ spec:
   template:
     metadata:
       labels:
-        model-inferencing: "cpu-arm"
+        model-inferencing: "agent-arm"
         ray-control-plane: "false"
     spec:
       nodeClassRef:
         group: karpenter.k8s.aws
         kind: EC2NodeClass
-        name: cpu-inference-arm
+        name: karpenter-cpu-agent-Graviton
       taints:
         - key: "model-inferencing"
-          value: "cpu-arm"
+          value: "agent-arm"
           effect: NoSchedule
       expireAfter: 1h
       requirements:
@@ -40,14 +40,14 @@ spec:
           operator: In
           values: ["on-demand"]
         - key: karpenter.k8s.aws/instance-size
-          operator: NotIn
-          values: [nano, micro, small, medium, large]
+          operator: In
+          values: ["large", "xlarge"]
         - key: kubernetes.io/arch
           operator: In
           values: ["arm64"]
         - key: karpenter.k8s.aws/instance-generation
           operator: In
-          values: ["7", "8"]
+          values: ["6", "7", "8"]
         - key: node.kubernetes.io/instance-type
           operator: In
           values: ["c7g.4xlarge"]
@@ -55,7 +55,7 @@ spec:
 apiVersion: karpenter.k8s.aws/v1
 kind: EC2NodeClass
 metadata:
-  name: cpu-inference-arm
+  name: karpenter-cpu-agent-Graviton
 spec:
   kubelet:
     podsPerCore: 2
@@ -75,7 +75,7 @@ spec:
     - name: "amazon-eks-node-al2023-arm64-standard-1.30-*"
   role: "eksctl-llm-eks-cluster-nodegroup-n-NodeInstanceRole-y411lzob4Y8u"
   tags:
-    model-inferencing: "cpu-arm"
+    model-inferencing: "agent-arm"
     ray-control-plane: "false"
   detailedMonitoring: true
   blockDeviceMappings:

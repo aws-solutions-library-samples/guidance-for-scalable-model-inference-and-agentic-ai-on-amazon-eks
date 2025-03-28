@@ -24,6 +24,7 @@ spec:
     spec:
       nodeSelector:
         kubernetes.io/arch: arm64
+        karpenter.sh/nodepool: karpenter-cpu-agent-Graviton
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

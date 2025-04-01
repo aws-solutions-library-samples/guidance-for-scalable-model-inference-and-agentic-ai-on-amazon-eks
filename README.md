@@ -3,6 +3,33 @@
 ## Overview
 The solution implements a scalable ML inference architecture using Amazon EKS, leveraging both Graviton processors for CPU-based inference and GPU instances for accelerated inference. The system utilizes Ray Serve for model serving, deployed as containerized workloads within a Kubernetes environment.
 
+## Architecture
+![Architecture Diagram](image/Diagram.png)
+
+The architecture diagram illustrates our scalable ML inference solution with the following components:
+
+1. **Amazon EKS Cluster**: The foundation of our architecture, providing a managed Kubernetes environment.
+   
+2. **Karpenter Auto-scaling**: Dynamically provisions and scales compute resources based on workload demands.
+   
+3. **Node Pools**:
+   - **Graviton-based nodes (ARM64)**: Cost-effective CPU inference using m8g/c8g instances
+   - **GPU-based nodes (x86_64)**: High-performance inference using NVIDIA GPU instances (g5, g6 families)
+   
+4. **Ray Serve Deployment**:
+   - **Ray Head**: Manages the Ray cluster and coordinates workload distribution
+   - **Ray Workers**: Execute the inference tasks with either llama.cpp (on Graviton) or vLLM (on GPU)
+   
+5. **LiteLLM Proxy**: Acts as a unified inference API gateway, providing standardized OpenAI-compatible endpoints and handling request routing, load balancing, and fallback mechanisms across multiple model backends.
+   
+6. **Function Calling Service**: Enables agentic AI capabilities by allowing models to interact with external APIs and services.
+   
+7. **Monitoring & Observability**: Prometheus and Grafana for performance monitoring and visualization.
+
+This architecture provides flexibility to choose between cost-optimized CPU inference on Graviton processors or high-throughput GPU inference based on your specific requirements, all while maintaining elastic scalability through Kubernetes and Karpenter.
+
+For networking-intensive workloads such as agent orchestration and API proxying, we deploy these components on Graviton instances to leverage their excellent price-performance ratio for concurrent connection handling. Graviton processors excel at handling high-throughput networking tasks, making them ideal for the LiteLLM proxy and agent services that manage numerous concurrent requests and API calls. This approach optimizes cost efficiency while maintaining responsive performance for these connection-oriented workloads.
+
 ## Prerequisites
 
 ### 1. EKS cluster with KubeRay Operator installed

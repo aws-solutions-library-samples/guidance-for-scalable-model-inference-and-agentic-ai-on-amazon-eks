@@ -7,7 +7,7 @@
 apiVersion: karpenter.sh/v1
 kind: NodePool
 metadata:
-  name: karpenter-cpu-agent-Graviton
+  name: karpenter-cpu-agent-graviton
 spec:
   limits:
     cpu: 512
@@ -55,7 +55,7 @@ spec:
 apiVersion: karpenter.k8s.aws/v1
 kind: EC2NodeClass
 metadata:
-  name: karpenter-cpu-agent-Graviton
+  name: karpenter-cpu-agent-graviton
 spec:
   kubelet:
     podsPerCore: 2

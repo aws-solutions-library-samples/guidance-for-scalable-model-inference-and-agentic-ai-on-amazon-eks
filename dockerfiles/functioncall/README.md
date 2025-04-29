@@ -15,6 +15,7 @@ The application can be configured using the following environment variables:
 
 - `LLM_SERVER_URL`: URL of the LLM server (default: "http://llm-service:8080/v1/chat/completions")
 - `LLM_API_KEY`: API key for the LLM service (default: "sk-1234")
+- `LLM_MODEL`: Model name to use for inference (default: "llama3")
 - `CONNECT_TIMEOUT`: Connection timeout in seconds (default: 10)
 - `READ_TIMEOUT`: Read timeout in seconds (default: 300)
 - `LLM_MAX_RETRIES`: Maximum number of retries for LLM requests (default: 3)
@@ -33,6 +34,7 @@ docker build -t weather-function-service:latest .
 docker run -p 8000:8000 \
   -e LLM_SERVER_URL="http://your-llm-server:8080/v1/chat/completions" \
   -e LLM_API_KEY="your-api-key" \
+  -e LLM_MODEL="llama3" \
   weather-function-service:latest
 ```
 
@@ -69,6 +71,8 @@ spec:
             secretKeyRef:
               name: llm-credentials
               key: api-key
+        - name: LLM_MODEL
+          value: "llama3"
         resources:
           requests:
             memory: "256Mi"

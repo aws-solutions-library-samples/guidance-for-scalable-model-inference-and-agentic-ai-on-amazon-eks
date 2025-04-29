@@ -15,6 +15,7 @@ COPY server.py weather_service.py ./
 # These can be overridden when running the container
 ENV LLM_SERVER_URL="http://llm-service:8080/v1/chat/completions" \
     LLM_API_KEY="sk-1234" \
+    LLM_MODEL="llama3" \
     CONNECT_TIMEOUT=10 \
     READ_TIMEOUT=300 \
     LLM_MAX_RETRIES=3

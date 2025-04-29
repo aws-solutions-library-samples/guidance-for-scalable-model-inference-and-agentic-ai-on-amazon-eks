@@ -24,7 +24,6 @@ spec:
     spec:
       nodeSelector:
         kubernetes.io/arch: arm64
-        karpenter.sh/nodepool: karpenter-cpu-agent-Graviton
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -36,12 +35,14 @@ spec:
                 - arm64
       containers:
       - name: weather-function-service
-        image: 412381761882.dkr.ecr.us-west-2.amazonaws.com/function:latest
+        image: 412381761882.dkr.ecr.us-west-2.amazonaws.com/function:v5
         ports:
         - containerPort: 8000
         env:
         - name: LLM_SERVER_URL
-          value: "http://llama-cpp-cpu-lb-2137543273.us-west-2.elb.amazonaws.com/v1/chat/completions"
+          value: "http://52.11.105.97:8080/v1/chat/completions"
+        - name: LLM_MODEL
+          value: "Qwen/QwQ-32B-AWQ"
         - name: LLM_API_KEY
           valueFrom:
             secretKeyRef:

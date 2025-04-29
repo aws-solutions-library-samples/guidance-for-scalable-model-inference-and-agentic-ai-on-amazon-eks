@@ -4,7 +4,7 @@
 The solution implements a scalable ML inference architecture using Amazon EKS, leveraging both Graviton processors for CPU-based inference and GPU instances for accelerated inference. The system utilizes Ray Serve for model serving, deployed as containerized workloads within a Kubernetes environment.
 
 ## Architecture
-![Architecture Diagram](image/Diagram.png)
+![Architecture Diagram](image/arch.png)
 
 The architecture diagram illustrates our scalable ML inference solution with the following components:
 
@@ -24,7 +24,9 @@ The architecture diagram illustrates our scalable ML inference solution with the
    
 6. **Function Calling Service**: Enables agentic AI capabilities by allowing models to interact with external APIs and services.
    
-7. **Monitoring & Observability**: Prometheus and Grafana for performance monitoring and visualization.
+7. **MCP (Model Context Protocol)**: Provides augmented LLM capabilities by combining tool usage with Retrieval Augmented Generation (RAG) for enhanced context awareness.
+   
+8. **Monitoring & Observability**: Prometheus and Grafana for performance monitoring and visualization.
 
 This architecture provides flexibility to choose between cost-optimized CPU inference on Graviton processors or high-throughput GPU inference based on your specific requirements, all while maintaining elastic scalability through Kubernetes and Karpenter.
 
@@ -198,6 +200,178 @@ The service will:
 2. Identify the need to call the weather function
 3. Make the appropriate API call
 4. Return the weather information in a conversational format
+
+## Deploy LLM Gateway
+
+The LLM Gateway serves as a unified API layer for accessing multiple model backends through a standardized OpenAI-compatible interface. This section guides you through deploying LiteLLM as a proxy service on your EKS cluster.
+
+### Overview
+
+LiteLLM Proxy provides:
+- A unified OpenAI-compatible API for multiple model backends
+- Load balancing and routing between different models
+- Fallback mechanisms for high availability
+- Observability and monitoring capabilities
+- Authentication and rate limiting
+
+### Deployment Steps
+
+#### 1. Configure the LiteLLM service:
+The LiteLLM service is defined in `dockerfiles/litellm/combined.yaml` and includes:
+- A ConfigMap for the LiteLLM configuration
+- A Secret for API keys and database connection
+- A Deployment for the LiteLLM proxy service
+- A ClusterIP Service to expose the proxy internally
+- An Ingress to expose the service externally via an ALB
+
+#### 2. Customize the model configuration:
+Edit the `config.yaml` section in the ConfigMap to specify your model backends:
+```yaml
+model_list: 
+  - model_name: your-model-name
+    litellm_params:
+      model: openai/your-model-name
+      api_base: http://your-model-endpoint/v1
+      api_key: os.environ/OPENAI_API_KEY
+```
+
+#### 3. Update the secrets:
+Replace the base64-encoded API keys in the Secret section with your actual keys.
+
+#### 4. Deploy the LiteLLM proxy:
+```bash
+kubectl apply -f dockerfiles/litellm/combined.yaml
+```
+
+#### 5. Access the LiteLLM proxy:
+Once deployed, you can access the LiteLLM proxy through the ALB created by the Ingress:
+```bash
+# Get the ALB URL
+kubectl get ingress litellm-ingress
+
+# Test the API
+curl -X POST https://<YOUR-ALB-URL>/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer sk-1234" \
+  -d '{
+    "model": "unsloth/DeepSeek-R1-Distill-Qwen-7B-GGUF",
+    "messages": [{"role": "user", "content": "Hello, how are you?"}]
+  }'
+```
+
+The LiteLLM proxy will route your request to the appropriate model backend based on the model name specified in the request.
+
+## Installing Milvus Vector Database in EKS
+
+Milvus is an open-source vector database that powers embedding similarity search and AI applications. This section guides you through deploying Milvus on your EKS cluster with Graviton processors.
+
+### Prerequisites
+
+- Your EKS cluster is already set up with Graviton (ARM64) nodes
+- Cert-manager is installed on the cluster
+- AWS EBS CSI driver is configured for persistent storage
+
+### Deployment Steps
+
+#### 1. Install cert-manager (if not already installed):
+```bash
+kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.5.3/cert-manager.yaml
+kubectl get pods -n cert-manager
+```
+
+#### 2. Install Milvus Operator:
+```bash
+kubectl apply -f https://raw.githubusercontent.com/zilliztech/milvus-operator/main/deploy/manifests/deployment.yaml
+kubectl get pods -n milvus-operator
+```
+
+#### 3. Create EBS Storage Class:
+```bash
+kubectl apply -f milvus/ebs-storage-class.yaml
+```
+
+#### 4. Deploy Milvus in standalone mode:
+```bash
+kubectl apply -f milvus/milvus-standalone.yaml
+```
+
+#### 5. Create Network Load Balancer Service (optional, for external access):
+```bash
+kubectl apply -f milvus/milvus-nlb-service.yaml
+```
+
+#### 6. Access Milvus:
+You can access Milvus using port-forwarding:
+```bash
+kubectl port-forward service/my-release-milvus 19530:19530
+```
+
+Or through the Network Load Balancer if you deployed the NLB service.
+
+## Deploying MCP (Model Context Protocol) Service
+
+The MCP service enables augmented LLM capabilities by combining tool usage with Retrieval Augmented Generation (RAG) for enhanced context awareness. This implementation is framework-independent, not relying on LangChain or LlamaIndex.
+
+### Architecture
+
+The MCP service consists of several modular components:
+- **Agent**: Coordinates workflow and manages tool usage
+- **ChatOpenAI**: Handles interactions with the language model and tool calling
+- **MCPClient**: Connects to MCP servers and manages tool calls
+- **EmbeddingRetriever**: Creates and searches vector embeddings for relevant context
+- **VectorStore**: Interfaces with Milvus for storing and retrieving embeddings
+
+### Workflow
+
+1. **Knowledge Embedding**
+   - Documents from the `knowledge` directory are converted to vector embeddings
+   - Embeddings and source documents are stored in Milvus vector database
+
+2. **Context Retrieval (RAG)**
+   - User queries are converted to embeddings
+   - The system finds relevant documents by calculating similarity between embeddings
+   - Top matching documents form context for the LLM
+
+3. **MCP Tool Setup**
+   - MCP clients connect to tool servers (e.g., filesystem operations)
+   - Tools are registered with the agent
+
+4. **Task Execution**
+   - User tasks are processed by the LLM with retrieved context
+   - The LLM may use tools via MCP clients
+   - Tool results are fed back to the LLM to continue the conversation
+
+### Deployment Steps
+
+#### 1. Set up environment variables:
+Create a `.env` file in the `mcp` directory with:
+```
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_BASE_URL=your_openai_model_inference_endpoint
+EMBEDDING_BASE_URL=https://bedrock-runtime.us-west-2.amazonaws.com
+EMBEDDING_KEY=not_needed_for_aws_credentials
+AWS_REGION=us-west-2
+MILVUS_ADDRESS=your_milvus_service_address
+```
+
+#### 2. Install dependencies:
+```bash
+cd mcp
+pnpm install
+```
+
+#### 3. Run the application:
+```bash
+pnpm dev
+```
+
+#### 4. Extend the system:
+This modular architecture can be extended by:
+- Adding more MCP servers for additional tool capabilities
+- Implementing advanced Milvus features like filtering and hybrid search
+- Adding more sophisticated RAG techniques
+- Implementing conversation history for multi-turn interactions
+- Deploying as a service with API endpoints
 
 ## How do we measure
 Our client program will generate prompts with different concurrency for each run. Every run will have common GenAI related prompts and assemble them into standard HTTP requests, and concurrency calls will keep increasing until the maximum CPU usage reaches to nearly 100%. We capture the total time from when a HTTP request is initiated to when a HTTP response is received as the latency metric of model performance. We also capture output token generated per second as throughput. The test aims to reach maximum CPU utilization on the worker pods to assess the concurrency performance.

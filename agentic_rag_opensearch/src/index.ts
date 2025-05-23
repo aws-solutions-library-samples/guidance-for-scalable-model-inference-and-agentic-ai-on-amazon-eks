@@ -63,13 +63,7 @@ The output path is ${outPath}.`;
   console.log(response);
   await agent.close();
   
-  // Close OpenSearch connection when done
-  const embeddingRetriever = new EmbeddingRetriever("custom-embedding-model");
-  // @ts-ignore - Access private property for cleanup
-  if (embeddingRetriever.vectorStore && typeof embeddingRetriever.vectorStore.close === 'function') {
-    // @ts-ignore
-    await embeddingRetriever.vectorStore.close();
-  }
+  // Keep OpenSearch connection open
 }
 
 async function retrieveContext(query: string) {

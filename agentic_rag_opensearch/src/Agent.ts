@@ -74,11 +74,10 @@ export default class Agent {
             const args = JSON.parse(argsString);
             
             // Find the MCP client that can handle this tool
-            const clientName = name.split('___')[0];
-            const toolName = name.split('___')[1] || name;
+            const toolName = name;
             
             // Find the appropriate client
-            const client = this.mcpClients.find(c => c.mcp.name === clientName);
+            const client = this.mcpClients[0]; // Since we only have one client
             
             if (!client) {
                 throw new Error(`No MCP client found for tool: ${name}`);

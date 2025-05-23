@@ -30,7 +30,7 @@ if (!fs.existsSync(outPath)) {
     logTitle('INITIALIZING AGENTIC RAG SYSTEM');
     
     // Initialize the filesystem MCP client
-    const fileMCP = new MCPClient("mcp-server-file", "npx", ['-y', '@modelcontextprotocol/server-filesystem', outPath]);
+    const fileMCP = new MCPClient("filesystem", "npx", ['-y', '@modelcontextprotocol/server-filesystem', outPath]);
     
     await main(fileMCP);
   } catch (error) {

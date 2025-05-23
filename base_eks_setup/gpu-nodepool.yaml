@@ -1,0 +1,91 @@
+---
+# GPU Node Pool for ML inference workloads
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: gpu-inference
+spec:
+  limits:
+    cpu: 1024
+    memory: 8192Gi
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 30s
+  template:
+    metadata:
+      labels:
+        model-inferencing: "gpu-inference"
+        ray-control-plane: "false"
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: gpu-inference
+      taints:
+        - key: "model-inferencing"
+          value: "gpu-inference"
+          effect: NoSchedule
+      expireAfter: 8h
+      requirements:
+        - key: karpenter.k8s.aws/instance-category
+          operator: In
+          values:
+          - g
+        - key: karpenter.k8s.aws/instance-family
+          operator: In
+          values: ["g5", "g6"]
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+        - key: kubernetes.io/os
+          operator: In
+          values: ["linux"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+        - key: karpenter.k8s.aws/instance-gpu-manufacturer
+          operator: In
+          values: ["nvidia"]
+        - key: karpenter.k8s.aws/instance-gpu-count
+          operator: In
+          values: ["1", "2", "4"]
+---
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: gpu-inference
+spec:
+  kubelet:
+    podsPerCore: 2
+    maxPods: 20
+    systemReserved:
+      cpu: 500m
+      memory: 900Mi
+  subnetSelectorTerms:
+    - tags:
+        Environment: dev
+        Name: wre-dev-private-*
+        karpenter.sh/discovery: wre-dev
+  securityGroupSelectorTerms:
+    - tags:
+        Environment: dev
+        karpenter.sh/discovery: wre-dev
+  amiFamily: "AL2023"
+  amiSelectorTerms:
+    - name: "amazon-eks-gpu-node-1.29-v*"
+  role: KarpenterNode-wre-dev
+  tags:
+    Environment: dev
+    karpenter.sh/discovery: wre-dev
+    model-inferencing: "gpu-inference"
+    ray-control-plane: "false"
+    Provisioned-By: aws-solutions-library-samples/guidance-for-automated-provisioning-of-application-ready-amazon-eks-clusters
+  blockDeviceMappings:
+  - deviceName: /dev/xvda
+    ebs:
+      volumeSize: 500Gi
+      volumeType: gp3
+      iops: 10000
+      encrypted: false
+      deleteOnTermination: true
+      throughput: 512

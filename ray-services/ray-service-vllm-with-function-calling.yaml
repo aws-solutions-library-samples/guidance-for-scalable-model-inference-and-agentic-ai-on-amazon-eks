@@ -3,17 +3,14 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: hf-token
-  namespace: rayserve-vllm
-data:
-  hf-token: Hugging Face User Access Token
 stringData:
   llm-api-key: sk-1234
+  hf-token: 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
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: vllm-code
-  namespace: rayserve-vllm
 data:
   vllm.py: |
     import json
@@ -241,7 +238,6 @@ apiVersion: ray.io/v1
 kind: RayService
 metadata:
   name: vllm-function-call
-  namespace: rayserve-vllm
 spec:
   serviceUnhealthySecondThreshold: 1800 # Config for the health check threshold for service. Default value is 60.
   deploymentUnhealthySecondThreshold: 1800 # Config for the health check threshold for deployments. Default value is 60.
@@ -252,7 +248,7 @@ spec:
         runtime_env:
           env_vars:
             LD_LIBRARY_PATH: "/home/ray/anaconda3/lib:$LD_LIBRARY_PATH"
-            MODEL_ID: "unsloth/QwQ-32B"
+            MODEL_ID: "Qwen/QwQ-32B-AWQ"
             GPU_MEMORY_UTILIZATION: "0.9"
             MAX_MODEL_LEN: "8192"
             MAX_NUM_SEQ: "4"
@@ -280,10 +276,6 @@ spec:
     ######################headGroupSpecs#################################
     # Ray head pod template.
     headGroupSpec:
-      headService:
-        metadata:
-          name: vllm-function-call
-          namespace: rayserve-vllm
       rayStartParams:
         dashboard-host: '0.0.0.0'
         num-cpus: "0"
@@ -334,12 +326,12 @@ spec:
                   name: hf-token
                   key: hf-token
           nodeSelector:
-            ray-control-plane: "true"
-            function-calling: "enabled"
+            kubernetes.io/arch: amd64
+            karpenter.sh/nodepool: x86-inference
           tolerations:
-          - key: "ray-control-plane"
+          - key: "model-inferencing"
             operator: "Equal"
-            value: "true"
+            value: "x86-inference"
             effect: "NoSchedule"
           volumes:
           - name: ray-logs
@@ -371,12 +363,12 @@ spec:
               subPath: vllm.py
             resources:
               limits:
-                cpu: 10
-                memory: "60G"
+                cpu: 16
+                memory: "50Gi"
                 nvidia.com/gpu: 1
               requests:
-                cpu: 10
-                memory: "60G"
+                cpu: 16
+                memory: "50Gi"
                 nvidia.com/gpu: 1
             env:
             # Ensure to set VLLM_PORT to avoid conflict with Ray serve port 8000
@@ -394,14 +386,16 @@ spec:
                 secretKeyRef:
                   name: hf-token
                   key: llm-api-key
+          # Updated nodeSelector to target GPU instances specifically
           nodeSelector:
-            model-inferencing: "gpu-general"
-            ray-control-plane: "false"
-          # Tolerations for the GPU node taints
+            kubernetes.io/arch: amd64
+            nvidia.com/gpu: present
+            karpenter.sh/nodepool: gpu-inference
+          # Updated tolerations to match the taint on the GPU nodepool
           tolerations:
           - key: "model-inferencing"
             operator: "Equal"
-            value: "gpu-general"
+            value: "gpu-inference"
             effect: "NoSchedule"
           volumes:
           - name: vllm-code-volume

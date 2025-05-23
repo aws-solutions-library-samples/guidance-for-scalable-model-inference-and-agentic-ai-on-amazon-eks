@@ -1,11 +1,11 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: llama-3-8b-cpu-llama-serve-ingress
+  name: embedding-ray-service-ingress
   annotations:
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/load-balancer-name: "llama-cpp-cpu-lb"
+    alb.ingress.kubernetes.io/load-balancer-name: "embedding-ray-lb"
     alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
     alb.ingress.kubernetes.io/healthcheck-port: "8265"
     alb.ingress.kubernetes.io/healthcheck-path: "/"
@@ -19,10 +19,6 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: ray-service-llamacpp-serve-svc
+            name: ray-service-embedding-serve-svc
             port:
               number: 8000
-
-
-
-

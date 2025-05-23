@@ -5,7 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "cd src && tsx index.ts",
+    "dev": "tsx src/index.ts",
     "embed-knowledge": "cd src && tsx embedKnowledge.ts",
     "embed-csv": "cd src && tsx embedCSV.ts",
     "update-rag": "cd src && tsx updateRAG.ts",

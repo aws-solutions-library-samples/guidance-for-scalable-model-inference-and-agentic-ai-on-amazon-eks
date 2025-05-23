@@ -1,34 +1,37 @@
 import { Client } from '@opensearch-project/opensearch';
-import { VectorStore, VectorStoreItem } from './VectorStore';
+import { VectorStore } from './VectorStore';
 import 'dotenv/config';
 import AWS from 'aws-sdk';
-import { RequestsHttpConnection } from '@opensearch-project/opensearch/lib/aws/connection';
+import { AwsSigv4Signer } from '@opensearch-project/opensearch/aws';
 
 export default class OpenSearchVectorStore implements VectorStore {
     private client: Client;
     private indexName: string = 'rag_documents';
-    private dimension: number = 1536; // Default dimension for embeddings
+    private dimension: number = 384; // Default dimension for embeddings
 
     constructor() {
-        // Connect to OpenSearch cluster
-        const region = process.env.AWS_REGION || 'us-east-1';
-        const opensearchEndpoint = 'https://vpc-test-2pqci5m227ovpoaqcubvm6e5ia.us-east-1.es.amazonaws.com';
+        // Get configuration from environment variables
+        const region = process.env.AWS_REGION;
+        const opensearchEndpoint = process.env.OPENSEARCH_ENDPOINT;
         
+        if (!region || !opensearchEndpoint) {
+            throw new Error('AWS_REGION and OPENSEARCH_ENDPOINT environment variables must be set');
+        }
+
         // Create AWS credentials
-        const credentials = new AWS.EnvironmentCredentials('AWS');
-        
+        const credentials = {
+            accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || ''
+        };
+
         // Initialize the OpenSearch client with AWS Signature V4 authentication
         this.client = new Client({
-            node: opensearchEndpoint,
-            auth: {
-                type: 'aws',
-                credentials: credentials,
-                region: region
-            },
-            connection: RequestsHttpConnection,
-            ssl: {
-                rejectUnauthorized: true
-            }
+            ...AwsSigv4Signer({
+                region: region,
+                service: 'es',
+                credentials: credentials
+            }),
+            node: opensearchEndpoint
         });
         
         this.initIndex();
@@ -37,7 +40,9 @@ export default class OpenSearchVectorStore implements VectorStore {
     private async initIndex() {
         try {
             // Check if index exists
-            const indexExists = await this.client.indices.exists({ index: this.indexName });
+            const indexExists = await this.client.indices.exists({
+                index: this.indexName
+            });
             
             if (!indexExists.body) {
                 console.log(`Creating index ${this.indexName}`);
@@ -80,7 +85,7 @@ export default class OpenSearchVectorStore implements VectorStore {
             }
         } catch (error) {
             console.error('Error initializing OpenSearch index:', error);
-            console.error(JSON.stringify(error, null, 2));
+            throw error;
         }
     }
 
@@ -97,7 +102,7 @@ export default class OpenSearchVectorStore implements VectorStore {
             console.log('Document added to OpenSearch');
         } catch (error) {
             console.error('Error adding embedding to OpenSearch:', error);
-            console.error(JSON.stringify(error, null, 2));
+            throw error;
         }
     }
 
@@ -124,7 +129,6 @@ export default class OpenSearchVectorStore implements VectorStore {
             return hits.map((hit: any) => hit._source.document);
         } catch (error) {
             console.error('Error searching in OpenSearch:', error);
-            console.error(JSON.stringify(error, null, 2));
             return [];
         }
     }

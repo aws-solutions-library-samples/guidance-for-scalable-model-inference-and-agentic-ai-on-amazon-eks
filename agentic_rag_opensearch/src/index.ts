@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import MCPClient from "./MCPClient";
 import Agent from "./Agent";
 import path from "path";
@@ -5,10 +6,15 @@ import EmbeddingRetriever from "./EmbeddingRetriever";
 import fs from "fs";
 import { logTitle } from "./utils";
 
+// Verify environment variables are loaded
+if (!process.env.AWS_REGION || !process.env.OPENSEARCH_ENDPOINT) {
+  throw new Error('Required environment variables AWS_REGION and OPENSEARCH_ENDPOINT are not set');
+}
+
 // Use the parent directory (where the command is run) instead of src directory
 const outPath = path.resolve(process.cwd(), 'output');
 const TASK = `
-Find information about a user named "Antonette" from the context I provided. 
+Find information about What is the most important aspect of initial treatment for Bell's palsy?. 
 Summarize this information and create a story about her.
 Save the story and her basic information to a file named "antonette.md" in the output directory as a beautiful markdown file.
 `
@@ -34,7 +40,7 @@ if (!fs.existsSync(outPath)) {
 
 async function main(fileMCP: MCPClient) {
   // Step 1: Retrieve relevant context using RAG
-  const context = await retrieveContext("Antonette");
+  const context = await retrieveContext("What is the most important aspect of initial treatment for Bell's palsy?");
   
   // Step 2: Initialize the agent with the context and MCP client
   logTitle('INITIALIZING AGENT');
@@ -57,7 +63,7 @@ The output path is ${outPath}.`;
   console.log(response);
   await agent.close();
   
-  // Close Milvus connection when done
+  // Close OpenSearch connection when done
   const embeddingRetriever = new EmbeddingRetriever("custom-embedding-model");
   // @ts-ignore - Access private property for cleanup
   if (embeddingRetriever.vectorStore && typeof embeddingRetriever.vectorStore.close === 'function') {
@@ -80,7 +86,7 @@ async function retrieveContext(query: string) {
     const context = documents.join('\n\n');
     
     console.log(`Retrieved ${documents.length} relevant documents`);
-    console.log('Context preview:', context.substring(0, 200) + '...');
+    console.log('Context preview:', context);
     
     return context;
 }

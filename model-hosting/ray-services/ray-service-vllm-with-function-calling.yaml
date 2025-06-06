@@ -5,7 +5,7 @@ metadata:
   name: hf-token
 stringData:
   llm-api-key: sk-1234
-  hf-token: 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
+  hf-token: YOUR_HUGGING_FACE_TOKEN_HERE
 
 ---
 apiVersion: v1

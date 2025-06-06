@@ -12,8 +12,8 @@ export default class RAGAgent {
     async init() {
         logTitle('INITIALIZING RAG AGENT');
         
-        // Initialize the embedding retriever
-        this.embeddingRetriever = new EmbeddingRetriever("custom-embedding-model");
+        // Initialize the embedding retriever with llamacpp-embedding model
+        this.embeddingRetriever = new EmbeddingRetriever("llamacpp-embedding");
         
         console.log('RAG Agent initialized');
     }

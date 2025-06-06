@@ -25,8 +25,8 @@ export default class KnowledgeAgent {
     async init() {
         logTitle('INITIALIZING KNOWLEDGE AGENT');
         
-        // Initialize embedding retriever
-        this.embeddingRetriever = new EmbeddingRetriever("custom-embedding-model");
+        // Initialize embedding retriever with llamacpp-embedding model
+        this.embeddingRetriever = new EmbeddingRetriever("llamacpp-embedding");
         
         // Load existing metadata if available
         await this.loadMetadata();

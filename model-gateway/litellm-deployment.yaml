@@ -94,7 +94,7 @@ metadata:
 data:
   config.yaml: |
     model_list:
-    - model_name: vllm
+    - model_name: Qwen/QwQ-32B-AWQ
       litellm_params:
         model: hosted_vllm/Qwen/QwQ-32B-AWQ
         api_base: http://vllm-function-call-serve-svc:8000/v1

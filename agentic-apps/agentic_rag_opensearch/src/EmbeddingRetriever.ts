@@ -7,12 +7,14 @@ export default class EmbeddingRetriever {
     private embeddingModel: string;
     private vectorStore: OpenSearchVectorStore;
     private embeddingEndpoint: string;
+    private apiKey: string;
     private readonly targetDimension: number = 384;
 
     constructor(embeddingModel: string) {
-        this.embeddingModel = embeddingModel;
+        this.embeddingModel = "llamacpp-embedding"; // Using llamacpp-embedding model
         this.vectorStore = new OpenSearchVectorStore();
-        this.embeddingEndpoint = 'http://18.232.167.163:8080/v1/embeddings';
+        this.embeddingEndpoint = process.env.EMBEDDING_ENDPOINT;
+        this.apiKey = process.env.OPENAI_API_KEY;
     }
 
     async embedDocument(document: string) {
@@ -60,35 +62,40 @@ export default class EmbeddingRetriever {
 
     private async embed(document: string): Promise<number[]> {
         try {
-            console.log(`Sending embedding request to custom endpoint: ${this.embeddingEndpoint}`);
+            console.log(`Sending embedding request to endpoint: ${this.embeddingEndpoint}`);
+            console.log(`Using model: ${this.embeddingModel}`);
             console.log(`Document length: ${document.length} characters`);
             
             const response = await fetch(this.embeddingEndpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.apiKey}`
                 },
                 body: JSON.stringify({
-                    content: document
+                    model: this.embeddingModel,
+                    input: document
                 }),
             });
             
             if (!response.ok) {
                 console.log(`HTTP error! Status: ${response.status}`);
+                const errorText = await response.text();
+                console.log(`Error response: ${errorText}`);
                 return this.generateRandomEmbedding();
             }
             
             const responseBody = await response.json();
             
-            // Check if we got a valid embedding
-            if (!responseBody || !responseBody[0] || !responseBody[0].embedding || !Array.isArray(responseBody[0].embedding[0])) {
+            // Check if we got a valid embedding in the expected OpenAI format
+            if (!responseBody || !responseBody.data || !responseBody.data[0] || !responseBody.data[0].embedding) {
                 console.log("Warning: Embedding API didn't return a valid embedding");
                 console.log("Response:", JSON.stringify(responseBody, null, 2));
                 return this.generateRandomEmbedding();
             }
             
-            // Get the embedding array
-            const embedding = responseBody[0].embedding[0];
+            // Get the embedding array from the OpenAI-compatible format
+            const embedding = responseBody.data[0].embedding;
             
             // Ensure we have a 384-dimensional vector
             const resizedEmbedding = this.resizeEmbedding(embedding);
@@ -97,7 +104,7 @@ export default class EmbeddingRetriever {
             return resizedEmbedding;
             
         } catch (error) {
-            console.error("Error fetching embedding from custom endpoint:", error);
+            console.error("Error fetching embedding from endpoint:", error);
             return this.generateRandomEmbedding();
         }
     }

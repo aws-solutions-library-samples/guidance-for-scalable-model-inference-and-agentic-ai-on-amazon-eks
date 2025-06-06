@@ -21,8 +21,8 @@ async function processCSVFile(filePath: string) {
         
         console.log(`Found ${records.length} records in the CSV file`);
         
-        // Initialize the embedding retriever
-        const embeddingRetriever = new EmbeddingRetriever("custom-embedding-model");
+        // Initialize the embedding retriever with llamacpp-embedding model
+        const embeddingRetriever = new EmbeddingRetriever("llamacpp-embedding");
         
         // Process each record
         let processedCount = 0;

@@ -21,8 +21,8 @@ async function embedKnowledgeFiles() {
         
         console.log(`Found ${files.length} markdown files in the knowledge directory`);
         
-        // Initialize the embedding retriever
-        const embeddingRetriever = new EmbeddingRetriever("custom-embedding-model");
+        // Initialize the embedding retriever with llamacpp-embedding model
+        const embeddingRetriever = new EmbeddingRetriever("llamacpp-embedding");
         
         // Process each file
         for (const file of files) {

@@ -1,0 +1,137 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vllm-qwen-server
+  annotations:
+    kubernetes.io/pvc-protection: "false"  
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 900Gi
+  storageClassName: gp3
+  volumeMode: Filesystem
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-qwen-server
+  labels:
+    app: vllm-qwen-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm-qwen-server
+  template:
+    metadata:
+      labels:
+        app: vllm-qwen-server
+    spec:
+      # Updated nodeSelector to target GPU instances specifically
+      nodeSelector:
+            kubernetes.io/arch: amd64
+            nvidia.com/gpu: present
+            karpenter.sh/nodepool: gpu-inference
+          # Updated tolerations to match the taint on the GPU nodepool
+      tolerations:
+          - key: "model-inferencing"
+            operator: "Equal"
+            value: "gpu-inference"
+            effect: "NoSchedule"
+      volumes:
+      - name: cache-volume
+        persistentVolumeClaim:
+          claimName: vllm-qwen-server
+      # vLLM needs to access the host's shared memory for tensor parallel inference.
+      - name: shm
+        emptyDir:
+          medium: Memory
+          sizeLimit: "32Gi"
+      containers:
+      - name: vllm-qwen-server
+        image: vllm/vllm-openai:latest
+        # image: vllm/vllm-openai:v0.7.3
+        command: ["/bin/sh", "-c"]
+        args: [
+          "vllm serve Qwen/QwQ-32B-AWQ  --enable-auto-tool-choice --tool-call-parser hermes  --trust-remote-code --max-num-batched-tokens 8192  --max-num-seqs 8 --max-model-len 8192 --dtype bfloat16 --tensor-parallel-size 4 --gpu-memory-utilization 0.90"
+          
+        ]
+        # kishizaki-sci/Llama-4-Scout-17B-16E-Instruct-AWQ
+        # qwen-ai/qwen-R1-Distill-Qwen-32B
+        # kosbu/Llama-3.3-70B-Instruct-AWQ
+        # RedHatAI/Llama-4-Scout-17B-16E-Instruct-FP8-dynamic 
+        # meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8 
+        # "vllm serve meta-llama/Llama-3.2-11B-Vision-Instruct --enable-auto-tool-choice --tool-call-parser llama3_json  --trust-remote-code --max_num_batched_tokens 32768 --distributed-executor-backend ray --max-num-seqs 16 --max_model_len 32192 --dtype bfloat16 --tensor-parallel-size 8 --gpu-memory-utilization 0.95"
+        # llama3_json, pythonic, meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8, meta-llama/Llama-3.2-11B-Vision-Instruct, meta-llama/Llama-4-Scout-17B-16E-Instruct
+        env:
+        # export HUGGING_FACE_HUB_TOKEN=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
+        # export OMP_NUM_THREADS=24
+        # export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512,expandable_segments:True
+        # export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+        # export NVIDIA_VISIBLE_DEVICES=all
+        - name: HUGGING_FACE_HUB_TOKEN
+          value: "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"
+        - name: OMP_NUM_THREADS
+          value: "8"  
+        - name: VLLM_LOGGING_LEVEL
+          value: "DEBUG"  
+        - name: VLLM_DISABLE_COMPILE_CACHE
+          value: "0"  
+        # - name: PYTORCH_CUDA_ALLOC_CONF
+        #   value: "max_split_size_mb:512,expandable_segments:True"
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0,1,2,3"
+        ports:
+        - containerPort: 8000
+        resources:
+          limits:
+            memory: 64Gi
+            nvidia.com/gpu: "4"
+          requests:
+            cpu: "22"
+            memory: 64Gi
+            nvidia.com/gpu: "4"
+        volumeMounts:
+        - mountPath: /root/.cache/huggingface
+          name: cache-volume
+        - name: shm
+          mountPath: /dev/shm
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 240
+          periodSeconds: 10
+          failureThreshold: 30
+          successThreshold: 1
+
+          
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 240
+          periodSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-qwen-server
+spec:
+  ports:
+  - name: http-vllm-qwen-server
+    port: 8000
+    protocol: TCP
+    targetPort: 8000
+  # The label selector should match the deployment labels & it is useful for prefix caching feature
+  selector:
+    app: vllm-qwen-server
+  sessionAffinity: None
+  type: ClusterIP          
+
+
+

@@ -96,6 +96,9 @@ SupervisorAgent → Manages the overall workflow and coordinates all agents
 # Clone the repository
 git clone <repository-url>
 
+# Go to the right path
+cd agentic-apps/agentic_rag_opensearch
+
 # Install dependencies
 pnpm install
 

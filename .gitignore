@@ -41,3 +41,7 @@ out/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Project specific files
+agentic-apps/agentic_rag_opensearch/pnpm-lock.yaml
+agentic-apps/agentic_rag_opensearch/.knowledge-metadata.json

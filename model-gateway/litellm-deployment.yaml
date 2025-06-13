@@ -97,13 +97,19 @@ data:
     - model_name: Qwen/QwQ-32B-AWQ
       litellm_params:
         model: hosted_vllm/Qwen/QwQ-32B-AWQ
-        api_base: http://vllm-function-call-serve-svc:8000/v1
-        api_key: sk-1234
+        api_base: http://vllm-qwen-server:8000/v1
     - model_name: llamacpp-embedding
       litellm_params:
         model: hosted_vllm/ChristianAzinn/snowflake-arctic-embed-s-gguf
         api_base: http://ray-service-llamacpp-serve-svc:8000/v1
         api_key: sk-1234
+    - model_name: vllm-server-qwen-vision
+      litellm_params:
+        model: hosted_vllm/Qwen/Qwen2.5-VL-7B-Instruct
+        api_base: http://vllm-qwen-server-vision:8000/v1
+        stream: false
+      model_info:
+        supports_function_calling: true
 
     # guardrails:
     #   - guardrail_name: "custom-post-guard"
@@ -119,6 +125,20 @@ data:
         # redis_startup_nodes: [{"host": "redis", "port": "6379"}] 
         ttl: 10
       drop_parmas: false
+      forward_to_langfuse: true
+      success_callback: ["langfuse"]
+      failure_callback: ["langfuse"]
+      langfuse_public_key: os.environ/LANGFUSE_PUBLIC_KEY
+      langfuse_secret: os.environ/LANGFUSE_SECRET_KEY
+      langfuse_host: os.environ/LANGFUSE_HOST
+
+      default_team_settings: 
+        - team_id: team-1
+          success_callback: ["langfuse"]
+          failure_callback: ["langfuse"]
+          langfuse_public_key: os.environ/LANGFUSE_PUBLIC_KEY
+          langfuse_secret: os.environ/LANGFUSE_SECRET_KEY
+          langfuse_host: os.environ/LANGFUSE_HOST
 
     # https://docs.litellm.ai/docs/proxy/configs  
 
@@ -168,6 +188,13 @@ spec:
         env:
         - name: DATABASE_URL
           value: postgres://myuser:mypassword@postgres:5432/mydatabase      
+
+        - name: LANGFUSE_SECRET_KEY
+          value: sk-lf-ed6b2038-b3ec-4a5c-8c47-b33cba4f771a
+        - name: LANGFUSE_PUBLIC_KEY
+          value: pk-lf-83c92af4-c2a9-43f1-b25d-3c651e154ea6
+        - name: LANGFUSE_HOST
+          value: http://k8s-default-langfuse-4c0721e68b-501681166.us-east-1.elb.amazonaws.com
         - name: REDIS_HOST
           value: redis
         - name: REDIS_PORT

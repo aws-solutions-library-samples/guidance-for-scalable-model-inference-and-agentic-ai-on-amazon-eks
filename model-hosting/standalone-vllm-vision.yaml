@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: vllm-qwen-server
+  name: vllm-qwen-server-vision
   annotations:
     kubernetes.io/pvc-protection: "false"  
 spec:
@@ -17,18 +17,18 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vllm-qwen-server
+  name: vllm-qwen-server-vision
   labels:
-    app: vllm-qwen-server
+    app: vllm-qwen-server-vision
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: vllm-qwen-server
+      app: vllm-qwen-server-vision
   template:
     metadata:
       labels:
-        app: vllm-qwen-server
+        app: vllm-qwen-server-vision
     spec:
       # Updated nodeSelector to target GPU instances specifically
       nodeSelector:
@@ -44,19 +44,19 @@ spec:
       volumes:
       - name: cache-volume
         persistentVolumeClaim:
-          claimName: vllm-qwen-server
+          claimName: vllm-qwen-server-vision
       # vLLM needs to access the host's shared memory for tensor parallel inference.
       - name: shm
         emptyDir:
           medium: Memory
           sizeLimit: "32Gi"
       containers:
-      - name: vllm-qwen-server
+      - name: vllm-qwen-server-vision
         image: vllm/vllm-openai:latest
         # image: vllm/vllm-openai:v0.7.3
         command: ["/bin/sh", "-c"]
         args: [
-          "vllm serve Qwen/QwQ-32B-AWQ  --enable-auto-tool-choice --tool-call-parser hermes  --trust-remote-code --max-num-batched-tokens 8192  --max-num-seqs 8 --max-model-len 8192 --dtype bfloat16 --tensor-parallel-size 4 --gpu-memory-utilization 0.90"
+          "vllm serve Qwen/Qwen2.5-VL-7B-Instruct  --enable-auto-tool-choice --tool-call-parser hermes  --trust-remote-code --max-num-batched-tokens 8192  --max-num-seqs 8 --max-model-len 8192 --dtype bfloat16 --tensor-parallel-size 4 --gpu-memory-utilization 0.90"
           
         ]
         # kishizaki-sci/Llama-4-Scout-17B-16E-Instruct-AWQ
@@ -115,16 +115,16 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: vllm-qwen-server
+  name: vllm-qwen-server-vision
 spec:
   ports:
-  - name: http-vllm-qwen-server
+  - name: http-vllm-qwen-server-vision
     port: 8000
     protocol: TCP
     targetPort: 8000
   # The label selector should match the deployment labels & it is useful for prefix caching feature
   selector:
-    app: vllm-qwen-server
+    app: vllm-qwen-server-vision
   sessionAffinity: None
   type: ClusterIP          
 

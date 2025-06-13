@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import 'dotenv/config'
 import { logTitle } from "./utils";
+import { createGeneration, isLangfuseEnabled } from "./LangfuseConfig";
 
 export interface ToolCall {
     id: string;
@@ -16,8 +17,9 @@ export default class ChatOpenAI {
     private model: string;
     private messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
     private tools: Tool[];
+    private trace: any; // Langfuse trace
 
-    constructor(model: string, systemPrompt: string = '', tools: Tool[] = [], context: string = '') {
+    constructor(model: string, systemPrompt: string = '', tools: Tool[] = [], context: string = '', trace?: any) {
         this.llm = new OpenAI({
             apiKey: process.env.OPENAI_API_KEY,
             baseURL: process.env.OPENAI_BASE_URL,
@@ -29,6 +31,7 @@ export default class ChatOpenAI {
         });
         this.model = model;
         this.tools = tools;
+        this.trace = trace;
         if (systemPrompt) this.messages.push({ role: "system", content: systemPrompt });
         if (context) this.messages.push({ role: "user", content: `Here is some context that might be helpful: \n\n${context}` });
     }
@@ -43,6 +46,23 @@ export default class ChatOpenAI {
         console.log('Sending request to model:', this.model);
         console.log('Messages count:', this.messages.length);
         console.log('Tools count:', this.tools.length);
+        
+        // Create Langfuse generation for tracing
+        const generation = createGeneration(
+            this.trace,
+            `chat-${this.model}`,
+            {
+                messages: this.messages.map(m => ({ role: m.role, content: typeof m.content === 'string' ? m.content.substring(0, 200) + '...' : '[complex content]' })),
+                tools: this.tools.map(t => t.name),
+                model: this.model
+            },
+            this.model,
+            {
+                messageCount: this.messages.length,
+                toolCount: this.tools.length,
+                hasSystemPrompt: this.messages.some(m => m.role === 'system')
+            }
+        );
         
         try {
             // Create request options with tools if available
@@ -63,7 +83,9 @@ export default class ChatOpenAI {
                 messages: `[${requestOptions.messages.length} messages]` // Don't log full messages
             }, null, 2));
             
+            const startTime = Date.now();
             const completion = await this.llm.chat.completions.create(requestOptions);
+            const endTime = Date.now();
             
             // Extract the response content and tool calls
             const message = completion.choices[0]?.message;
@@ -75,6 +97,26 @@ export default class ChatOpenAI {
                     arguments: tc.function.arguments
                 }
             })) || [];
+            
+            // Update Langfuse generation with results
+            if (generation && isLangfuseEnabled) {
+                generation.end({
+                    output: {
+                        content: content.substring(0, 500) + (content.length > 500 ? '...' : ''),
+                        toolCalls: toolCalls.map(tc => ({ name: tc.function.name, id: tc.id }))
+                    },
+                    usage: {
+                        promptTokens: completion.usage?.prompt_tokens,
+                        completionTokens: completion.usage?.completion_tokens,
+                        totalTokens: completion.usage?.total_tokens
+                    },
+                    metadata: {
+                        duration: endTime - startTime,
+                        finishReason: completion.choices[0]?.finish_reason,
+                        model: completion.model
+                    }
+                });
+            }
             
             // Add the response to messages
             this.messages.push({
@@ -96,6 +138,17 @@ export default class ChatOpenAI {
                 toolCalls: toolCalls,
             };
         } catch (error) {
+            // Update Langfuse generation with error
+            if (generation && isLangfuseEnabled) {
+                generation.end({
+                    output: null,
+                    metadata: {
+                        error: error.message || 'Unknown error',
+                        errorType: error.constructor.name
+                    }
+                });
+            }
+            
             console.error('Error details:', error);
             
             // Enhanced error logging

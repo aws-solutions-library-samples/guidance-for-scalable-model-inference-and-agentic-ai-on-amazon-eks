@@ -3,6 +3,7 @@ import KnowledgeAgent from "./KnowledgeAgent";
 import RAGAgent from "./RAGAgent";
 import MCPAgent from "./MCPAgent";
 import MCPClient from "../MCPClient";
+import { createTrace, createSpan, flushLangfuse, isLangfuseEnabled } from "../LangfuseConfig";
 
 export interface AgentTask {
     id: string;
@@ -24,6 +25,7 @@ export default class SupervisorAgent {
     private mcpAgent: MCPAgent;
     private taskQueue: AgentTask[] = [];
     private results: Map<string, AgentResult> = new Map();
+    private trace: any; // Langfuse trace
 
     constructor(mcpClients: MCPClient[], model: string = 'Qwen/QwQ-32B-AWQ') {
         this.knowledgeAgent = new KnowledgeAgent();
@@ -51,25 +53,87 @@ export default class SupervisorAgent {
             this.ragAgent.close(),
             this.mcpAgent.close()
         ]);
+        
+        // Flush Langfuse traces before closing
+        if (isLangfuseEnabled) {
+            console.log('Flushing Langfuse traces...');
+            await flushLangfuse();
+        }
     }
 
     async executeWorkflow(userQuery: string): Promise<string> {
         logTitle('EXECUTING MULTI-AGENT WORKFLOW');
         console.log(`User Query: ${userQuery}`);
 
+        // Create main trace for the entire workflow
+        this.trace = createTrace(
+            'multi-agent-workflow',
+            { userQuery },
+            {
+                agentType: 'SupervisorAgent',
+                workflowType: 'multi-agent-rag',
+                timestamp: new Date().toISOString()
+            }
+        );
+
         try {
             // Step 1: Check knowledge and update if needed
+            const knowledgeSpan = createSpan(this.trace, 'knowledge-check', { step: 1 });
             const knowledgeStatus = await this.checkAndUpdateKnowledge();
+            if (knowledgeSpan && isLangfuseEnabled) {
+                knowledgeSpan.end({ output: { hasChanges: knowledgeStatus } });
+            }
             
             // Step 2: Retrieve context using RAG
+            const ragSpan = createSpan(this.trace, 'rag-retrieval', { step: 2, userQuery });
             const context = await this.retrieveContext(userQuery);
+            if (ragSpan && isLangfuseEnabled) {
+                ragSpan.end({ 
+                    output: { 
+                        contextLength: context.length,
+                        contextPreview: context.substring(0, 200) + '...'
+                    } 
+                });
+            }
             
             // Step 3: Execute task with MCP tools
+            const mcpSpan = createSpan(this.trace, 'mcp-execution', { step: 3, userQuery, contextLength: context.length });
             const finalResult = await this.executeWithTools(userQuery, context);
+            if (mcpSpan && isLangfuseEnabled) {
+                mcpSpan.end({ 
+                    output: { 
+                        resultLength: finalResult.length,
+                        resultPreview: finalResult.substring(0, 200) + '...'
+                    } 
+                });
+            }
+
+            // End main trace with success
+            if (this.trace && isLangfuseEnabled) {
+                this.trace.update({
+                    output: {
+                        success: true,
+                        resultLength: finalResult.length,
+                        tasksCompleted: this.results.size
+                    }
+                });
+            }
             
             return finalResult;
         } catch (error) {
             console.error('Error in workflow execution:', error);
+            
+            // End main trace with error
+            if (this.trace && isLangfuseEnabled) {
+                this.trace.update({
+                    output: {
+                        success: false,
+                        error: error.message || 'Unknown error',
+                        errorType: error.constructor.name
+                    }
+                });
+            }
+            
             throw error;
         }
     }
@@ -151,7 +215,7 @@ export default class SupervisorAgent {
         };
 
         try {
-            const result = await this.mcpAgent.executeTask(query, context);
+            const result = await this.mcpAgent.executeTask(query, context, this.trace);
             
             this.results.set(task.id, {
                 taskId: task.id,

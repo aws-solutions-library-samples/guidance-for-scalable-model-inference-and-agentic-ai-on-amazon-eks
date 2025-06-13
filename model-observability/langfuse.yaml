@@ -1,0 +1,2107 @@
+
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    annotations:
+      
+      
+      volume.beta.kubernetes.io/storage-provisioner: ebs.csi.aws.com
+      volume.kubernetes.io/storage-provisioner: ebs.csi.aws.com
+    creationTimestamp: "2025-02-20T08:18:08Z"
+    finalizers:
+    - kubernetes.io/pvc-protection
+    labels:
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: minio
+      app.kubernetes.io/version: 2024.12.18
+      helm.sh/chart: minio-14.10.5
+    name: langfuse-minio
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 8Gi
+    storageClassName: gp3
+    volumeMode: Filesystem
+
+- apiVersion: v1
+  data:
+    00_default_overrides.xml: "<clickhouse>\n  <!-- Macros -->\n  <macros>\n    <shard
+      from_env=\"CLICKHOUSE_SHARD_ID\"></shard>\n    <replica from_env=\"CLICKHOUSE_REPLICA_ID\"></replica>\n
+      \   <layer>langfuse-clickhouse</layer>\n  </macros>\n  <!-- Log Level -->\n
+      \ <logger>\n    <level>information</level>\n  </logger>\n  <!-- Cluster configuration
+      - Any update of the shards and replicas requires helm upgrade -->\n  <remote_servers>\n
+      \   <default>\n      <shard>\n          <replica>\n              <host>langfuse-clickhouse-shard0-0.langfuse-clickhouse-headless.default.svc.cluster.local</host>\n
+      \             <port>9000</port>\n              <user from_env=\"CLICKHOUSE_ADMIN_USER\"></user>\n
+      \             <password from_env=\"CLICKHOUSE_ADMIN_PASSWORD\"></password>\n
+      \         </replica>\n          <replica>\n              <host>langfuse-clickhouse-shard0-1.langfuse-clickhouse-headless.default.svc.cluster.local</host>\n
+      \             <port>9000</port>\n              <user from_env=\"CLICKHOUSE_ADMIN_USER\"></user>\n
+      \             <password from_env=\"CLICKHOUSE_ADMIN_PASSWORD\"></password>\n
+      \         </replica>\n          <replica>\n              <host>langfuse-clickhouse-shard0-2.langfuse-clickhouse-headless.default.svc.cluster.local</host>\n
+      \             <port>9000</port>\n              <user from_env=\"CLICKHOUSE_ADMIN_USER\"></user>\n
+      \             <password from_env=\"CLICKHOUSE_ADMIN_PASSWORD\"></password>\n
+      \         </replica>\n      </shard>\n    </default>\n  </remote_servers>\n
+      \ <!-- Zookeeper configuration -->\n  <zookeeper>\n    \n    <node>\n      <host
+      from_env=\"KEEPER_NODE_0\"></host>\n      <port>2181</port>\n    </node>\n    <node>\n
+      \     <host from_env=\"KEEPER_NODE_1\"></host>\n      <port>2181</port>\n    </node>\n
+      \   <node>\n      <host from_env=\"KEEPER_NODE_2\"></host>\n      <port>2181</port>\n
+      \   </node>\n  </zookeeper>\n  <listen_host>0.0.0.0</listen_host>\n  <listen_host>::</listen_host>\n
+      \ <listen_try>1</listen_try>\n</clickhouse>\n"
+  kind: ConfigMap
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:08Z"
+    labels:
+      app.kubernetes.io/component: clickhouse
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: clickhouse
+      app.kubernetes.io/version: 24.12.3
+      helm.sh/chart: clickhouse-7.2.0
+    name: langfuse-clickhouse
+- apiVersion: v1
+  data:
+    setup.sh: |-
+      #!/bin/bash
+
+      # Execute entrypoint as usual after obtaining KEEPER_SERVER_ID
+      # check KEEPER_SERVER_ID in persistent volume via myid
+      # if not present, set based on POD hostname
+      if [[ -f "/bitnami/clickhouse/keeper/data/myid" ]]; then
+          export KEEPER_SERVER_ID="$(cat /bitnami/clickhouse/keeper/data/myid)"
+      else
+          HOSTNAME="$(hostname -s)"
+          if [[ $HOSTNAME =~ (.*)-([0-9]+)$ ]]; then
+              export KEEPER_SERVER_ID=${BASH_REMATCH[2]}
+          else
+              echo "Failed to get index from hostname $HOST"
+              exit 1
+          fi
+      fi
+      exec /opt/bitnami/scripts/clickhouse/entrypoint.sh /opt/bitnami/scripts/clickhouse/run.sh  "$@"
+  kind: ConfigMap
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:08Z"
+    labels:
+      app.kubernetes.io/component: clickhouse
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: clickhouse
+      app.kubernetes.io/version: 24.12.3
+      helm.sh/chart: clickhouse-7.2.0
+    name: langfuse-clickhouse-scripts
+- apiVersion: v1
+  data:
+    primary.conf: |-
+      dir /data
+      # User-supplied primary configuration:
+      rename-command FLUSHDB ""
+      rename-command FLUSHALL ""
+      # End of primary configuration
+    replica.conf: |-
+      dir /data
+      # User-supplied replica configuration:
+      rename-command FLUSHDB ""
+      rename-command FLUSHALL ""
+      # End of replica configuration
+    valkey.conf: |-
+      # User-supplied common configuration:
+      # Enable AOF https://valkey.io/docs/topics/persistence.html
+      appendonly yes
+      # Disable RDB persistence, AOF persistence already enabled.
+      save ""
+      # End of common configuration
+  kind: ConfigMap
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:08Z"
+    labels:
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: valkey
+      app.kubernetes.io/part-of: valkey
+      app.kubernetes.io/version: 8.0.2
+      helm.sh/chart: valkey-2.2.3
+    name: langfuse-valkey-configuration
+- apiVersion: v1
+  data:
+    ping_liveness_local.sh: |-
+      #!/bin/bash
+
+      [[ -f $VALKEY_PASSWORD_FILE ]] && export VALKEY_PASSWORD="$(< "${VALKEY_PASSWORD_FILE}")"
+      [[ -n "$VALKEY_PASSWORD" ]] && export REDISCLI_AUTH="$VALKEY_PASSWORD"
+      response=$(
+        timeout -s 15 $1 \
+        valkey-cli \
+          -h localhost \
+          -p $VALKEY_PORT \
+          ping
+      )
+      if [ "$?" -eq "124" ]; then
+        echo "Timed out"
+        exit 1
+      fi
+      responseFirstWord=$(echo $response | head -n1 | awk '{print $1;}')
+      if [ "$response" != "PONG" ] && [ "$responseFirstWord" != "LOADING" ] && [ "$responseFirstWord" != "MASTERDOWN" ]; then
+        echo "$response"
+        exit 1
+      fi
+    ping_liveness_local_and_primary.sh: |-
+      script_dir="$(dirname "$0")"
+      exit_status=0
+      "$script_dir/ping_liveness_local.sh" $1 || exit_status=$?
+      "$script_dir/ping_liveness_primary.sh" $1 || exit_status=$?
+      exit $exit_status
+    ping_liveness_primary.sh: |-
+      #!/bin/bash
+
+      [[ -f $VALKEY_PRIMARY_PASSWORD_FILE ]] && export VALKEY_PRIMARY_PASSWORD="$(< "${VALKEY_PRIMARY_PASSWORD_FILE}")"
+      [[ -n "$VALKEY_PRIMARY_PASSWORD" ]] && export REDISCLI_AUTH="$VALKEY_PRIMARY_PASSWORD"
+      response=$(
+        timeout -s 15 $1 \
+        valkey-cli \
+          -h $VALKEY_PRIMARY_HOST \
+          -p $VALKEY_PRIMARY_PORT_NUMBER \
+          ping
+      )
+      if [ "$?" -eq "124" ]; then
+        echo "Timed out"
+        exit 1
+      fi
+      responseFirstWord=$(echo $response | head -n1 | awk '{print $1;}')
+      if [ "$response" != "PONG" ] && [ "$responseFirstWord" != "LOADING" ]; then
+        echo "$response"
+        exit 1
+      fi
+    ping_readiness_local.sh: |-
+      #!/bin/bash
+
+      [[ -f $VALKEY_PASSWORD_FILE ]] && export VALKEY_PASSWORD="$(< "${VALKEY_PASSWORD_FILE}")"
+      [[ -n "$VALKEY_PASSWORD" ]] && export REDISCLI_AUTH="$VALKEY_PASSWORD"
+      response=$(
+        timeout -s 15 $1 \
+        valkey-cli \
+          -h localhost \
+          -p $VALKEY_PORT \
+          ping
+      )
+      if [ "$?" -eq "124" ]; then
+        echo "Timed out"
+        exit 1
+      fi
+      if [ "$response" != "PONG" ]; then
+        echo "$response"
+        exit 1
+      fi
+    ping_readiness_local_and_primary.sh: |-
+      script_dir="$(dirname "$0")"
+      exit_status=0
+      "$script_dir/ping_readiness_local.sh" $1 || exit_status=$?
+      "$script_dir/ping_readiness_primary.sh" $1 || exit_status=$?
+      exit $exit_status
+    ping_readiness_primary.sh: |-
+      #!/bin/bash
+
+      [[ -f $VALKEY_PRIMARY_PASSWORD_FILE ]] && export VALKEY_PRIMARY_PASSWORD="$(< "${VALKEY_PRIMARY_PASSWORD_FILE}")"
+      [[ -n "$VALKEY_PRIMARY_PASSWORD" ]] && export REDISCLI_AUTH="$VALKEY_PRIMARY_PASSWORD"
+      response=$(
+        timeout -s 15 $1 \
+        valkey-cli \
+          -h $VALKEY_PRIMARY_HOST \
+          -p $VALKEY_PRIMARY_PORT_NUMBER \
+          ping
+      )
+      if [ "$?" -eq "124" ]; then
+        echo "Timed out"
+        exit 1
+      fi
+      if [ "$response" != "PONG" ]; then
+        echo "$response"
+        exit 1
+      fi
+  kind: ConfigMap
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:08Z"
+    labels:
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: valkey
+      app.kubernetes.io/version: 8.0.2
+      helm.sh/chart: valkey-2.2.3
+    name: langfuse-valkey-health
+- apiVersion: v1
+  data:
+    start-primary.sh: |
+      #!/bin/bash
+
+      [[ -f $VALKEY_PASSWORD_FILE ]] && export VALKEY_PASSWORD="$(< "${VALKEY_PASSWORD_FILE}")"
+      if [[ -f /opt/bitnami/valkey/mounted-etc/primary.conf ]];then
+          cp /opt/bitnami/valkey/mounted-etc/primary.conf /opt/bitnami/valkey/etc/primary.conf
+      fi
+      if [[ -f /opt/bitnami/valkey/mounted-etc/valkey.conf ]];then
+          cp /opt/bitnami/valkey/mounted-etc/valkey.conf /opt/bitnami/valkey/etc/valkey.conf
+      fi
+      ARGS=("--port" "${VALKEY_PORT}")
+      ARGS+=("--requirepass" "${VALKEY_PASSWORD}")
+      ARGS+=("--primaryauth" "${VALKEY_PASSWORD}")
+      ARGS+=("--include" "/opt/bitnami/valkey/etc/valkey.conf")
+      ARGS+=("--include" "/opt/bitnami/valkey/etc/primary.conf")
+      ARGS+=("--maxmemory-policy noeviction")
+      exec valkey-server "${ARGS[@]}"
+  kind: ConfigMap
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:08Z"
+    labels:
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: valkey
+      app.kubernetes.io/part-of: valkey
+      app.kubernetes.io/version: 8.0.2
+      helm.sh/chart: valkey-2.2.3
+    name: langfuse-valkey-scripts
+- apiVersion: v1
+  data:
+    init-certs.sh: '#!/bin/bash'
+    setup.sh: |-
+      #!/bin/bash
+
+      # Execute entrypoint as usual after obtaining ZOO_SERVER_ID
+      # check ZOO_SERVER_ID in persistent volume via myid
+      # if not present, set based on POD hostname
+      if [[ -f "/bitnami/zookeeper/data/myid" ]]; then
+          export ZOO_SERVER_ID="$(cat /bitnami/zookeeper/data/myid)"
+      else
+          HOSTNAME="$(hostname -s)"
+          if [[ $HOSTNAME =~ (.*)-([0-9]+)$ ]]; then
+              ORD=${BASH_REMATCH[2]}
+              export ZOO_SERVER_ID="$((ORD + 1 ))"
+          else
+              echo "Failed to get index from hostname $HOSTNAME"
+              exit 1
+          fi
+      fi
+      exec /entrypoint.sh /run.sh
+  kind: ConfigMap
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:08Z"
+    labels:
+      app.kubernetes.io/component: zookeeper
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: zookeeper
+      app.kubernetes.io/version: 3.9.3
+      helm.sh/chart: zookeeper-13.7.2
+    name: langfuse-zookeeper-scripts
+- apiVersion: v1
+  data:
+    admin-password: Y2hhbmdlbWU=
+  kind: Secret
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:08Z"
+    labels:
+      app.kubernetes.io/component: clickhouse
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: clickhouse
+      app.kubernetes.io/version: 24.12.3
+      helm.sh/chart: clickhouse-7.2.0
+    name: langfuse-clickhouse
+  type: Opaque
+- apiVersion: v1
+  data:
+    root-password: bWluaW9zZWNyZXQ=
+    root-user: bWluaW8=
+  kind: Secret
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:08Z"
+    labels:
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: minio
+      app.kubernetes.io/version: 2024.12.18
+      helm.sh/chart: minio-14.10.5
+    name: langfuse-minio
+  type: Opaque
+- apiVersion: v1
+  data:
+    nextauth-secret: Y2hhbmdlbWU=
+  kind: Secret
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:08Z"
+    labels:
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: langfuse
+      app.kubernetes.io/version: "3"
+      helm.sh/chart: langfuse-0.12.1
+    name: langfuse-nextauth
+  type: Opaque
+- apiVersion: v1
+  data:
+    postgres-password: cG9zdGdyZXM=
+  kind: Secret
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:08Z"
+    labels:
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: postgresql
+      app.kubernetes.io/version: 17.2.0
+      helm.sh/chart: postgresql-16.4.5
+    name: langfuse-postgresql
+  type: Opaque
+- apiVersion: v1
+  data:
+    valkey-password: Y2hhbmdlbWU=
+  kind: Secret
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:08Z"
+    labels:
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: valkey
+      app.kubernetes.io/part-of: valkey
+      app.kubernetes.io/version: 8.0.2
+      helm.sh/chart: valkey-2.2.3
+    name: langfuse-valkey
+  type: Opaque
+- apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:09Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/component: clickhouse
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: clickhouse
+      app.kubernetes.io/version: 24.12.3
+      helm.sh/chart: clickhouse-7.2.0
+      shard: "0"
+    name: langfuse-clickhouse-shard0
+  spec:
+    persistentVolumeClaimRetentionPolicy:
+      whenDeleted: Retain
+      whenScaled: Retain
+    podManagementPolicy: Parallel
+    replicas: 3
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app.kubernetes.io/component: clickhouse
+        app.kubernetes.io/instance: langfuse
+        app.kubernetes.io/name: clickhouse
+    serviceName: langfuse-clickhouse-headless
+    template:
+      metadata:
+        annotations:
+          checksum/config: 47a356b73e2a0172ad2384be42405884b9d4f2bb71d76551bb88a5535275bd94
+          checksum/config-extra: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
+          checksum/config-users-extra: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
+        creationTimestamp: null
+        labels:
+          app.kubernetes.io/component: clickhouse
+          app.kubernetes.io/instance: langfuse
+          app.kubernetes.io/managed-by: Helm
+          app.kubernetes.io/name: clickhouse
+          app.kubernetes.io/version: 24.12.3
+          helm.sh/chart: clickhouse-7.2.0
+          shard: "0"
+      spec:
+        affinity:
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/component: clickhouse
+                    app.kubernetes.io/instance: langfuse
+                    app.kubernetes.io/name: clickhouse
+                topologyKey: kubernetes.io/hostname
+              weight: 1
+        automountServiceAccountToken: false
+        containers:
+        - command:
+          - /scripts/setup.sh
+          env:
+          - name: BITNAMI_DEBUG
+            value: "false"
+          - name: CLICKHOUSE_HTTP_PORT
+            value: "8123"
+          - name: CLICKHOUSE_TCP_PORT
+            value: "9000"
+          - name: CLICKHOUSE_MYSQL_PORT
+            value: "9004"
+          - name: CLICKHOUSE_POSTGRESQL_PORT
+            value: "9005"
+          - name: CLICKHOUSE_INTERSERVER_HTTP_PORT
+            value: "9009"
+          - name: CLICKHOUSE_ADMIN_USER
+            value: default
+          - name: CLICKHOUSE_SHARD_ID
+            value: shard0
+          - name: CLICKHOUSE_REPLICA_ID
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.name
+          - name: CLICKHOUSE_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: admin-password
+                name: langfuse-clickhouse
+          - name: KEEPER_NODE_0
+            value: langfuse-zookeeper-0.langfuse-zookeeper-headless.default.svc.cluster.local
+          - name: KEEPER_NODE_1
+            value: langfuse-zookeeper-1.langfuse-zookeeper-headless.default.svc.cluster.local
+          - name: KEEPER_NODE_2
+            value: langfuse-zookeeper-2.langfuse-zookeeper-headless.default.svc.cluster.local
+          image: public.ecr.aws/p7b6k2h9/fmamazon/genai-eks:clickhouse-24.12.3-debian-12-r1
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: http
+            timeoutSeconds: 1
+          name: clickhouse
+          ports:
+          - containerPort: 8123
+            name: http
+            protocol: TCP
+          - containerPort: 9000
+            name: tcp
+            protocol: TCP
+          - containerPort: 9005
+            name: tcp-postgresql
+            protocol: TCP
+          - containerPort: 9004
+            name: tcp-mysql
+            protocol: TCP
+          - containerPort: 9009
+            name: http-intersrv
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /ping
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: "6"
+              ephemeral-storage: 2Gi
+              memory: 12Gi
+            requests:
+              cpu: "1"
+              ephemeral-storage: 50Mi
+              memory: 3Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsGroup: 1001
+            runAsNonRoot: true
+            runAsUser: 1001
+            seLinuxOptions: {}
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /opt/bitnami/clickhouse/etc
+            name: empty-dir
+            subPath: app-conf-dir
+          - mountPath: /opt/bitnami/clickhouse/logs
+            name: empty-dir
+            subPath: app-logs-dir
+          - mountPath: /opt/bitnami/clickhouse/tmp
+            name: empty-dir
+            subPath: app-tmp-dir
+          - mountPath: /tmp
+            name: empty-dir
+            subPath: tmp-dir
+          - mountPath: /scripts/setup.sh
+            name: scripts
+            subPath: setup.sh
+          - mountPath: /bitnami/clickhouse
+            name: data
+          - mountPath: /bitnami/clickhouse/etc/conf.d/default
+            name: config
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext:
+          fsGroup: 1001
+          fsGroupChangePolicy: Always
+        serviceAccount: langfuse-clickhouse
+        serviceAccountName: langfuse-clickhouse
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - configMap:
+            defaultMode: 493
+            name: langfuse-clickhouse-scripts
+          name: scripts
+        - emptyDir: {}
+          name: empty-dir
+        - configMap:
+            defaultMode: 420
+            name: langfuse-clickhouse
+          name: config
+    updateStrategy:
+      type: RollingUpdate
+    volumeClaimTemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        creationTimestamp: null
+        labels:
+          app.kubernetes.io/component: clickhouse
+          app.kubernetes.io/instance: langfuse
+          app.kubernetes.io/name: clickhouse
+        name: data
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 8Gi
+        volumeMode: Filesystem
+      status:
+        phase: Pending
+  status:
+    availableReplicas: 3
+    collisionCount: 0
+    currentReplicas: 3
+    currentRevision: langfuse-clickhouse-shard0-6fbdc8d4dd
+    observedGeneration: 1
+    readyReplicas: 3
+    replicas: 3
+    updateRevision: langfuse-clickhouse-shard0-6fbdc8d4dd
+    updatedReplicas: 3
+- apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:09Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/component: primary
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: postgresql
+      app.kubernetes.io/version: 17.2.0
+      helm.sh/chart: postgresql-16.4.5
+    name: langfuse-postgresql
+  spec:
+    persistentVolumeClaimRetentionPolicy:
+      whenDeleted: Retain
+      whenScaled: Retain
+    podManagementPolicy: OrderedReady
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app.kubernetes.io/component: primary
+        app.kubernetes.io/instance: langfuse
+        app.kubernetes.io/name: postgresql
+    serviceName: langfuse-postgresql-hl
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app.kubernetes.io/component: primary
+          app.kubernetes.io/instance: langfuse
+          app.kubernetes.io/managed-by: Helm
+          app.kubernetes.io/name: postgresql
+          app.kubernetes.io/version: 17.2.0
+          helm.sh/chart: postgresql-16.4.5
+        name: langfuse-postgresql
+      spec:
+        affinity:
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/component: primary
+                    app.kubernetes.io/instance: langfuse
+                    app.kubernetes.io/name: postgresql
+                topologyKey: kubernetes.io/hostname
+              weight: 1
+        automountServiceAccountToken: false
+        containers:
+        - env:
+          - name: BITNAMI_DEBUG
+            value: "false"
+          - name: POSTGRESQL_PORT_NUMBER
+            value: "5432"
+          - name: POSTGRESQL_VOLUME_DIR
+            value: /bitnami/postgresql
+          - name: PGDATA
+            value: /bitnami/postgresql/data
+          - name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: postgres-password
+                name: langfuse-postgresql
+          - name: POSTGRES_DATABASE
+            value: postgres_langfuse
+          - name: POSTGRESQL_ENABLE_LDAP
+            value: "no"
+          - name: POSTGRESQL_ENABLE_TLS
+            value: "no"
+          - name: POSTGRESQL_LOG_HOSTNAME
+            value: "false"
+          - name: POSTGRESQL_LOG_CONNECTIONS
+            value: "false"
+          - name: POSTGRESQL_LOG_DISCONNECTIONS
+            value: "false"
+          - name: POSTGRESQL_PGAUDIT_LOG_CATALOG
+            value: "off"
+          - name: POSTGRESQL_CLIENT_MIN_MESSAGES
+            value: error
+          - name: POSTGRESQL_SHARED_PRELOAD_LIBRARIES
+            value: pgaudit
+          image: public.ecr.aws/p7b6k2h9/fmamazon/genai-eks:postgresql-17.2.0-debian-12-r8
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - exec pg_isready -U "postgres" -d "dbname=postgres_langfuse" -h 127.0.0.1
+                -p 5432
+            failureThreshold: 6
+            initialDelaySeconds: 200
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          name: postgresql
+          ports:
+          - containerPort: 5432
+            name: tcp-postgresql
+            protocol: TCP
+          readinessProbe:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - -e
+              - |
+                exec pg_isready -U "postgres" -d "dbname=postgres_langfuse" -h 127.0.0.1 -p 5432
+                [ -f /opt/bitnami/postgresql/tmp/.initialized ] || [ -f /bitnami/postgresql/.initialized ]
+            failureThreshold: 6
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          resources:
+            limits:
+              cpu: 150m
+              ephemeral-storage: 2Gi
+              memory: 192Mi
+            requests:
+              cpu: 100m
+              ephemeral-storage: 50Mi
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsGroup: 1001
+            runAsNonRoot: true
+            runAsUser: 1001
+            seLinuxOptions: {}
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /tmp
+            name: empty-dir
+            subPath: tmp-dir
+          - mountPath: /opt/bitnami/postgresql/conf
+            name: empty-dir
+            subPath: app-conf-dir
+          - mountPath: /opt/bitnami/postgresql/tmp
+            name: empty-dir
+            subPath: app-tmp-dir
+          - mountPath: /dev/shm
+            name: dshm
+          - mountPath: /bitnami/postgresql
+            name: data
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext:
+          fsGroup: 1001
+          fsGroupChangePolicy: Always
+        serviceAccount: langfuse-postgresql
+        serviceAccountName: langfuse-postgresql
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - emptyDir: {}
+          name: empty-dir
+        - emptyDir:
+            medium: Memory
+          name: dshm
+    updateStrategy:
+      rollingUpdate:
+        partition: 0
+      type: RollingUpdate
+    volumeClaimTemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        creationTimestamp: null
+        name: data
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 8Gi
+        volumeMode: Filesystem
+      status:
+        phase: Pending
+  status:
+    availableReplicas: 1
+    collisionCount: 0
+    currentReplicas: 1
+    currentRevision: langfuse-postgresql-5c7d8d58f6
+    observedGeneration: 1
+    readyReplicas: 1
+    replicas: 1
+    updateRevision: langfuse-postgresql-5c7d8d58f6
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:09Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/component: primary
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: valkey
+      app.kubernetes.io/part-of: valkey
+      app.kubernetes.io/version: 8.0.2
+      helm.sh/chart: valkey-2.2.3
+    name: langfuse-valkey-primary
+  spec:
+    persistentVolumeClaimRetentionPolicy:
+      whenDeleted: Retain
+      whenScaled: Retain
+    podManagementPolicy: OrderedReady
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app.kubernetes.io/component: primary
+        app.kubernetes.io/instance: langfuse
+        app.kubernetes.io/name: valkey
+    serviceName: langfuse-valkey-headless
+    template:
+      metadata:
+        annotations:
+          checksum/configmap: c8cdc0c4c772ac3192446a08bf401c29f1e39f33614657d36e4bb1692e34b39f
+          checksum/health: e3a0f06458110f02986bb8df4391c43567355d3582dd02f25447184391196fbc
+          checksum/scripts: 7a413afc2606007753c903c5b45cb419023d8be9ac534341770543056c956d3e
+          checksum/secret: b6a1ec38f338ddc2549686770cd644719aa49f186495fe8a75c2d5a761d66bf9
+        creationTimestamp: null
+        labels:
+          app.kubernetes.io/component: primary
+          app.kubernetes.io/instance: langfuse
+          app.kubernetes.io/managed-by: Helm
+          app.kubernetes.io/name: valkey
+          app.kubernetes.io/version: 8.0.2
+          helm.sh/chart: valkey-2.2.3
+      spec:
+        affinity:
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/component: primary
+                    app.kubernetes.io/instance: langfuse
+                    app.kubernetes.io/name: valkey
+                topologyKey: kubernetes.io/hostname
+              weight: 1
+        automountServiceAccountToken: false
+        containers:
+        - args:
+          - -c
+          - /opt/bitnami/scripts/start-scripts/start-primary.sh
+          command:
+          - /bin/bash
+          env:
+          - name: BITNAMI_DEBUG
+            value: "false"
+          - name: VALKEY_REPLICATION_MODE
+            value: primary
+          - name: ALLOW_EMPTY_PASSWORD
+            value: "no"
+          - name: VALKEY_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: valkey-password
+                name: langfuse-valkey
+          - name: VALKEY_TLS_ENABLED
+            value: "no"
+          - name: VALKEY_PORT
+            value: "6379"
+          image: public.ecr.aws/p7b6k2h9/fmamazon/genai-eks:valkey-8.0.2-debian-12-r0
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            exec:
+              command:
+              - sh
+              - -c
+              - /health/ping_liveness_local.sh 5
+            failureThreshold: 5
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 6
+          name: valkey
+          ports:
+          - containerPort: 6379
+            name: redis
+            protocol: TCP
+          readinessProbe:
+            exec:
+              command:
+              - sh
+              - -c
+              - /health/ping_readiness_local.sh 1
+            failureThreshold: 5
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 2
+          resources:
+            limits:
+              cpu: 150m
+              ephemeral-storage: 2Gi
+              memory: 192Mi
+            requests:
+              cpu: 100m
+              ephemeral-storage: 50Mi
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 1001
+            runAsNonRoot: true
+            runAsUser: 1001
+            seLinuxOptions: {}
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /opt/bitnami/scripts/start-scripts
+            name: start-scripts
+          - mountPath: /health
+            name: health
+          - mountPath: /data
+            name: valkey-data
+          - mountPath: /opt/bitnami/valkey/mounted-etc
+            name: config
+          - mountPath: /opt/bitnami/valkey/etc/
+            name: empty-dir
+            subPath: app-conf-dir
+          - mountPath: /tmp
+            name: empty-dir
+            subPath: tmp-dir
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: true
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext:
+          fsGroup: 1001
+          fsGroupChangePolicy: Always
+        serviceAccount: langfuse-valkey-primary
+        serviceAccountName: langfuse-valkey-primary
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - configMap:
+            defaultMode: 493
+            name: langfuse-valkey-scripts
+          name: start-scripts
+        - configMap:
+            defaultMode: 493
+            name: langfuse-valkey-health
+          name: health
+        - configMap:
+            defaultMode: 420
+            name: langfuse-valkey-configuration
+          name: config
+        - emptyDir: {}
+          name: empty-dir
+    updateStrategy:
+      type: RollingUpdate
+    volumeClaimTemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        creationTimestamp: null
+        labels:
+          app.kubernetes.io/component: primary
+          app.kubernetes.io/instance: langfuse
+          app.kubernetes.io/name: valkey
+        name: valkey-data
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 8Gi
+        volumeMode: Filesystem
+      status:
+        phase: Pending
+  status:
+    availableReplicas: 1
+    collisionCount: 0
+    currentReplicas: 1
+    currentRevision: langfuse-valkey-primary-d444c5d7f
+    observedGeneration: 1
+    readyReplicas: 1
+    replicas: 1
+    updateRevision: langfuse-valkey-primary-d444c5d7f
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:09Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/component: zookeeper
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: zookeeper
+      app.kubernetes.io/version: 3.9.3
+      helm.sh/chart: zookeeper-13.7.2
+      role: zookeeper
+    name: langfuse-zookeeper
+  spec:
+    persistentVolumeClaimRetentionPolicy:
+      whenDeleted: Retain
+      whenScaled: Retain
+    podManagementPolicy: Parallel
+    replicas: 3
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app.kubernetes.io/component: zookeeper
+        app.kubernetes.io/instance: langfuse
+        app.kubernetes.io/name: zookeeper
+    serviceName: langfuse-zookeeper-headless
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app.kubernetes.io/component: zookeeper
+          app.kubernetes.io/instance: langfuse
+          app.kubernetes.io/managed-by: Helm
+          app.kubernetes.io/name: zookeeper
+          app.kubernetes.io/version: 3.9.3
+          helm.sh/chart: zookeeper-13.7.2
+      spec:
+        affinity:
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/component: zookeeper
+                    app.kubernetes.io/instance: langfuse
+                    app.kubernetes.io/name: zookeeper
+                topologyKey: kubernetes.io/hostname
+              weight: 1
+        automountServiceAccountToken: false
+        containers:
+        - command:
+          - /scripts/setup.sh
+          env:
+          - name: BITNAMI_DEBUG
+            value: "false"
+          - name: ZOO_DATA_LOG_DIR
+          - name: ZOO_PORT_NUMBER
+            value: "2181"
+          - name: ZOO_TICK_TIME
+            value: "2000"
+          - name: ZOO_INIT_LIMIT
+            value: "10"
+          - name: ZOO_SYNC_LIMIT
+            value: "5"
+          - name: ZOO_PRE_ALLOC_SIZE
+            value: "65536"
+          - name: ZOO_SNAPCOUNT
+            value: "100000"
+          - name: ZOO_MAX_CLIENT_CNXNS
+            value: "60"
+          - name: ZOO_4LW_COMMANDS_WHITELIST
+            value: srvr, mntr, ruok
+          - name: ZOO_LISTEN_ALLIPS_ENABLED
+            value: "no"
+          - name: ZOO_AUTOPURGE_INTERVAL
+            value: "1"
+          - name: ZOO_AUTOPURGE_RETAIN_COUNT
+            value: "10"
+          - name: ZOO_MAX_SESSION_TIMEOUT
+            value: "40000"
+          - name: ZOO_SERVERS
+            value: langfuse-zookeeper-0.langfuse-zookeeper-headless.default.svc.cluster.local:2888:3888::1
+              langfuse-zookeeper-1.langfuse-zookeeper-headless.default.svc.cluster.local:2888:3888::2
+              langfuse-zookeeper-2.langfuse-zookeeper-headless.default.svc.cluster.local:2888:3888::3
+          - name: ZOO_ENABLE_AUTH
+            value: "no"
+          - name: ZOO_ENABLE_QUORUM_AUTH
+            value: "no"
+          - name: ZOO_HEAP_SIZE
+            value: "1024"
+          - name: ZOO_LOG_LEVEL
+            value: ERROR
+          - name: ALLOW_ANONYMOUS_LOGIN
+            value: "yes"
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.name
+          - name: ZOO_ADMIN_SERVER_PORT_NUMBER
+            value: "8080"
+          image: public.ecr.aws/p7b6k2h9/fmamazon/genai-eks:zookeeper-3.9.3-debian-12-r3
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            exec:
+              command:
+              - /bin/bash
+              - -ec
+              - ZOO_HC_TIMEOUT=3 /opt/bitnami/scripts/zookeeper/healthcheck.sh
+            failureThreshold: 6
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          name: zookeeper
+          ports:
+          - containerPort: 2181
+            name: client
+            protocol: TCP
+          - containerPort: 2888
+            name: follower
+            protocol: TCP
+          - containerPort: 3888
+            name: election
+            protocol: TCP
+          - containerPort: 8080
+            name: http-admin
+            protocol: TCP
+          readinessProbe:
+            exec:
+              command:
+              - /bin/bash
+              - -ec
+              - ZOO_HC_TIMEOUT=2 /opt/bitnami/scripts/zookeeper/healthcheck.sh
+            failureThreshold: 6
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          resources:
+            limits:
+              cpu: 375m
+              ephemeral-storage: 2Gi
+              memory: 384Mi
+            requests:
+              cpu: 250m
+              ephemeral-storage: 50Mi
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsGroup: 1001
+            runAsNonRoot: true
+            runAsUser: 1001
+            seLinuxOptions: {}
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /tmp
+            name: empty-dir
+            subPath: tmp-dir
+          - mountPath: /opt/bitnami/zookeeper/conf
+            name: empty-dir
+            subPath: app-conf-dir
+          - mountPath: /opt/bitnami/zookeeper/logs
+            name: empty-dir
+            subPath: app-logs-dir
+          - mountPath: /scripts/setup.sh
+            name: scripts
+            subPath: setup.sh
+          - mountPath: /bitnami/zookeeper
+            name: data
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: true
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext:
+          fsGroup: 1001
+          fsGroupChangePolicy: Always
+        serviceAccount: langfuse-zookeeper
+        serviceAccountName: langfuse-zookeeper
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - emptyDir: {}
+          name: empty-dir
+        - configMap:
+            defaultMode: 493
+            name: langfuse-zookeeper-scripts
+          name: scripts
+    updateStrategy:
+      rollingUpdate:
+        partition: 0
+      type: RollingUpdate
+    volumeClaimTemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        creationTimestamp: null
+        name: data
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 8Gi
+        volumeMode: Filesystem
+      status:
+        phase: Pending
+  status:
+    availableReplicas: 3
+    collisionCount: 0
+    currentReplicas: 3
+    currentRevision: langfuse-zookeeper-f54f88958
+    observedGeneration: 1
+    readyReplicas: 3
+    replicas: 3
+    updateRevision: langfuse-zookeeper-f54f88958
+    updatedReplicas: 3
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+      
+    creationTimestamp: "2025-02-20T08:18:09Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: minio
+      app.kubernetes.io/version: 2024.12.18
+      helm.sh/chart: minio-14.10.5
+    name: langfuse-minio
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app.kubernetes.io/instance: langfuse
+        app.kubernetes.io/name: minio
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        annotations:
+          checksum/credentials-secret: c8f4bfec69b44bd981214c118e31565d924f521aade8790446c8d4ac70740276
+        creationTimestamp: null
+        labels:
+          app.kubernetes.io/instance: langfuse
+          app.kubernetes.io/managed-by: Helm
+          app.kubernetes.io/name: minio
+          app.kubernetes.io/version: 2024.12.18
+          helm.sh/chart: minio-14.10.5
+      spec:
+        affinity:
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/instance: langfuse
+                    app.kubernetes.io/name: minio
+                topologyKey: kubernetes.io/hostname
+              weight: 1
+        automountServiceAccountToken: false
+        containers:
+        - env:
+          - name: BITNAMI_DEBUG
+            value: "false"
+          - name: MINIO_SCHEME
+            value: http
+          - name: MINIO_FORCE_NEW_KEYS
+            value: "no"
+          - name: MINIO_API_PORT_NUMBER
+            value: "9000"
+          - name: MINIO_ROOT_USER
+            valueFrom:
+              secretKeyRef:
+                key: root-user
+                name: langfuse-minio
+          - name: MINIO_ROOT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: root-password
+                name: langfuse-minio
+          - name: MINIO_DEFAULT_BUCKETS
+            value: langfuse
+          - name: MINIO_BROWSER
+            value: "on"
+          - name: MINIO_PROMETHEUS_AUTH_TYPE
+            value: public
+          - name: MINIO_CONSOLE_PORT_NUMBER
+            value: "9001"
+          - name: MINIO_DATA_DIR
+            value: /bitnami/minio/data
+          image: public.ecr.aws/p7b6k2h9/fmamazon/genai-eks:minio-2024.12.18-debian-12-r1
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /minio/health/live
+              port: minio-api
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 5
+          name: minio
+          ports:
+          - containerPort: 9000
+            name: minio-api
+            protocol: TCP
+          - containerPort: 9001
+            name: minio-console
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 5
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            successThreshold: 1
+            tcpSocket:
+              port: minio-api
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 375m
+              ephemeral-storage: 2Gi
+              memory: 384Mi
+            requests:
+              cpu: 250m
+              ephemeral-storage: 50Mi
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsGroup: 1001
+            runAsNonRoot: true
+            runAsUser: 1001
+            seLinuxOptions: {}
+            seccompProfile:
+              type: RuntimeDefault
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /tmp
+            name: empty-dir
+            subPath: tmp-dir
+          - mountPath: /opt/bitnami/minio/tmp
+            name: empty-dir
+            subPath: app-tmp-dir
+          - mountPath: /.mc
+            name: empty-dir
+            subPath: app-mc-dir
+          - mountPath: /bitnami/minio/data
+            name: data
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext:
+          fsGroup: 1001
+          fsGroupChangePolicy: OnRootMismatch
+        serviceAccount: langfuse-minio
+        serviceAccountName: langfuse-minio
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - emptyDir: {}
+          name: empty-dir
+        - name: data
+          persistentVolumeClaim:
+            claimName: langfuse-minio
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2025-02-20T08:31:34Z"
+      lastUpdateTime: "2025-02-20T08:31:34Z"
+      message: ReplicaSet "langfuse-minio-75db94d474" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2025-03-13T11:18:09Z"
+      lastUpdateTime: "2025-03-13T11:18:09Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 1
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "2"
+      
+    creationTimestamp: "2025-02-20T08:18:09Z"
+    generation: 3
+    labels:
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: langfuse
+      app.kubernetes.io/version: "3"
+      helm.sh/chart: langfuse-0.12.1
+    name: langfuse-web
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 2
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: web
+        app.kubernetes.io/instance: langfuse
+        app.kubernetes.io/name: langfuse
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: web
+          app.kubernetes.io/instance: langfuse
+          app.kubernetes.io/name: langfuse
+      spec:
+        containers:
+        - env:
+          - name: LANGFUSE_EE_LICENSE_KEY
+          - name: NODE_ENV
+            value: production
+          - name: HOSTNAME
+            value: 0.0.0.0
+          - name: PORT
+            value: "3000"
+          - name: DATABASE_USERNAME
+            value: postgres
+          - name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: postgres-password
+                name: langfuse-postgresql
+          - name: DATABASE_HOST
+            value: langfuse-postgresql
+          - name: DATABASE_NAME
+            value: postgres_langfuse
+          - name: NEXTAUTH_URL
+            value: http://localhost:3000
+          - name: NEXTAUTH_SECRET
+            valueFrom:
+              secretKeyRef:
+                key: nextauth-secret
+                name: langfuse-nextauth
+          - name: SALT
+            value: changeme
+          - name: TELEMETRY_ENABLED
+            value: "true"
+          - name: NEXT_PUBLIC_SIGN_UP_DISABLED
+            value: "false"
+          - name: ENABLE_EXPERIMENTAL_FEATURES
+            value: "false"
+          - name: REDIS_PORT
+            value: "6379"
+          - name: REDIS_CONNECTION_STRING
+            value: redis://default:changeme@langfuse-valkey-primary:6379/0
+          - name: CLICKHOUSE_MIGRATION_URL
+            value: clickhouse://langfuse-clickhouse:9000
+          - name: CLICKHOUSE_URL
+            value: http://langfuse-clickhouse:8123
+          - name: CLICKHOUSE_USER
+            value: default
+          - name: CLICKHOUSE_PASSWORD
+            value: changeme
+          - name: LANGFUSE_S3_EVENT_UPLOAD_ENABLED
+            value: "true"
+          - name: LANGFUSE_S3_EVENT_UPLOAD_BUCKET
+            value: langfuse
+          - name: LANGFUSE_S3_EVENT_UPLOAD_REGION
+            value: auto
+          - name: LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID
+            value: minio
+          - name: LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY
+            value: miniosecret
+          - name: LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT
+            value: http://langfuse-minio:9000
+          - name: LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE
+            value: "true"
+          image: public.ecr.aws/p7b6k2h9/fmamazon/genai-eks:langfuse-3
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 20
+            httpGet:
+              path: /api/public/health
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 250
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          name: langfuse-web
+          ports:
+          - containerPort: 3000
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /api/public/ready
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          resources: {}
+          securityContext: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: langfuse
+        serviceAccountName: langfuse
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2025-02-20T08:28:09Z"
+      lastUpdateTime: "2025-02-26T21:52:00Z"
+      message: ReplicaSet "langfuse-web-b5f5fc77b" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2025-04-21T16:30:34Z"
+      lastUpdateTime: "2025-04-21T16:30:34Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 3
+    readyReplicas: 2
+    replicas: 2
+    updatedReplicas: 2
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "2"
+      
+    creationTimestamp: "2025-02-20T08:18:09Z"
+    generation: 3
+    labels:
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: langfuse
+      app.kubernetes.io/version: "3"
+      helm.sh/chart: langfuse-0.12.1
+    name: langfuse-worker
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: worker
+        app.kubernetes.io/instance: langfuse
+        app.kubernetes.io/name: langfuse
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: worker
+          app.kubernetes.io/instance: langfuse
+          app.kubernetes.io/name: langfuse
+      spec:
+        containers:
+        - env:
+          - name: LANGFUSE_EE_LICENSE_KEY
+          - name: NODE_ENV
+            value: production
+          - name: HOSTNAME
+            value: 0.0.0.0
+          - name: PORT
+            value: "3000"
+          - name: DATABASE_USERNAME
+            value: postgres
+          - name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: postgres-password
+                name: langfuse-postgresql
+          - name: DATABASE_HOST
+            value: langfuse-postgresql
+          - name: DATABASE_NAME
+            value: postgres_langfuse
+          - name: NEXTAUTH_URL
+            value: http://localhost:3000
+          - name: NEXTAUTH_SECRET
+            valueFrom:
+              secretKeyRef:
+                key: nextauth-secret
+                name: langfuse-nextauth
+          - name: SALT
+            value: changeme
+          - name: TELEMETRY_ENABLED
+            value: "true"
+          - name: NEXT_PUBLIC_SIGN_UP_DISABLED
+            value: "false"
+          - name: ENABLE_EXPERIMENTAL_FEATURES
+            value: "false"
+          - name: REDIS_PORT
+            value: "6379"
+          - name: REDIS_CONNECTION_STRING
+            value: redis://default:changeme@langfuse-valkey-primary:6379/0
+          - name: CLICKHOUSE_MIGRATION_URL
+            value: clickhouse://langfuse-clickhouse:9000
+          - name: CLICKHOUSE_URL
+            value: http://langfuse-clickhouse:8123
+          - name: CLICKHOUSE_USER
+            value: default
+          - name: CLICKHOUSE_PASSWORD
+            value: changeme
+          - name: LANGFUSE_S3_EVENT_UPLOAD_ENABLED
+            value: "true"
+          - name: LANGFUSE_S3_EVENT_UPLOAD_BUCKET
+            value: langfuse
+          - name: LANGFUSE_S3_EVENT_UPLOAD_REGION
+            value: auto
+          - name: LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID
+            value: minio
+          - name: LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY
+            value: miniosecret
+          - name: LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT
+            value: http://langfuse-minio:9000
+          - name: LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE
+            value: "true"
+          image: public.ecr.aws/p7b6k2h9/fmamazon/genai-eks:langfuse-worker-3
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /api/health
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          name: langfuse-worker
+          ports:
+          - containerPort: 3000
+            name: http
+            protocol: TCP
+          resources: {}
+          securityContext: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        serviceAccount: langfuse
+        serviceAccountName: langfuse
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 2
+    conditions:
+    - lastTransitionTime: "2025-02-20T08:18:09Z"
+      lastUpdateTime: "2025-02-26T21:49:24Z"
+      message: ReplicaSet "langfuse-worker-6b649fcf66" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2025-04-21T16:29:28Z"
+      lastUpdateTime: "2025-04-21T16:29:28Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 3
+    readyReplicas: 2
+    replicas: 2
+    updatedReplicas: 2
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:08Z"
+    labels:
+      app.kubernetes.io/component: clickhouse
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: clickhouse
+      app.kubernetes.io/version: 24.12.3
+      helm.sh/chart: clickhouse-7.2.0
+    name: langfuse-clickhouse
+  spec:
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 8123
+      protocol: TCP
+      targetPort: http
+    - name: tcp
+      port: 9000
+      protocol: TCP
+      targetPort: tcp
+    - name: tcp-mysql
+      port: 9004
+      protocol: TCP
+      targetPort: tcp-mysql
+    - name: tcp-postgresql
+      port: 9005
+      protocol: TCP
+      targetPort: tcp-postgresql
+    - name: http-intersrv
+      port: 9009
+      protocol: TCP
+      targetPort: http-intersrv
+    selector:
+      app.kubernetes.io/component: clickhouse
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/name: clickhouse
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:08Z"
+    labels:
+      app.kubernetes.io/component: clickhouse
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: clickhouse
+      app.kubernetes.io/version: 24.12.3
+      helm.sh/chart: clickhouse-7.2.0
+    name: langfuse-clickhouse-headless
+  spec:
+    clusterIP: None
+    clusterIPs:
+    - None
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 8123
+      protocol: TCP
+      targetPort: http
+    - name: tcp
+      port: 9000
+      protocol: TCP
+      targetPort: tcp
+    - name: tcp-mysql
+      port: 9004
+      protocol: TCP
+      targetPort: tcp-mysql
+    - name: tcp-postgresql
+      port: 9005
+      protocol: TCP
+      targetPort: tcp-postgresql
+    - name: http-intersrv
+      port: 9009
+      protocol: TCP
+      targetPort: http-intersrv
+    publishNotReadyAddresses: true
+    selector:
+      app.kubernetes.io/component: clickhouse
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/name: clickhouse
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:08Z"
+    labels:
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: minio
+      app.kubernetes.io/version: 2024.12.18
+      helm.sh/chart: minio-14.10.5
+    name: langfuse-minio
+  spec:
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: minio-api
+      port: 9000
+      protocol: TCP
+      targetPort: minio-api
+    - name: minio-console
+      port: 9001
+      protocol: TCP
+      targetPort: minio-console
+    selector:
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/name: minio
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:08Z"
+    labels:
+      app.kubernetes.io/component: primary
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: postgresql
+      app.kubernetes.io/version: 17.2.0
+      helm.sh/chart: postgresql-16.4.5
+    name: langfuse-postgresql
+  spec:
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: tcp-postgresql
+      port: 5432
+      protocol: TCP
+      targetPort: tcp-postgresql
+    selector:
+      app.kubernetes.io/component: primary
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/name: postgresql
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:08Z"
+    labels:
+      app.kubernetes.io/component: primary
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: postgresql
+      app.kubernetes.io/version: 17.2.0
+      helm.sh/chart: postgresql-16.4.5
+    name: langfuse-postgresql-hl
+  spec:
+    clusterIP: None
+    clusterIPs:
+    - None
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: tcp-postgresql
+      port: 5432
+      protocol: TCP
+      targetPort: tcp-postgresql
+    publishNotReadyAddresses: true
+    selector:
+      app.kubernetes.io/component: primary
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/name: postgresql
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:09Z"
+    labels:
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: valkey
+      app.kubernetes.io/part-of: valkey
+      app.kubernetes.io/version: 8.0.2
+      helm.sh/chart: valkey-2.2.3
+    name: langfuse-valkey-headless
+  spec:
+    clusterIP: None
+    clusterIPs:
+    - None
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: tcp-redis
+      port: 6379
+      protocol: TCP
+      targetPort: redis
+    selector:
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/name: valkey
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:09Z"
+    labels:
+      app.kubernetes.io/component: primary
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: valkey
+      app.kubernetes.io/part-of: valkey
+      app.kubernetes.io/version: 8.0.2
+      helm.sh/chart: valkey-2.2.3
+    name: langfuse-valkey-primary
+  spec:
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: tcp-redis
+      port: 6379
+      protocol: TCP
+      targetPort: redis
+    selector:
+      app.kubernetes.io/component: primary
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/name: valkey
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:08Z"
+    labels:
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: langfuse
+      app.kubernetes.io/version: "3"
+      helm.sh/chart: langfuse-0.12.1
+    name: langfuse-web
+  spec:
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 3000
+      protocol: TCP
+      targetPort: http
+    selector:
+      app: web
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/name: langfuse
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:08Z"
+    labels:
+      app.kubernetes.io/component: zookeeper
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: zookeeper
+      app.kubernetes.io/version: 3.9.3
+      helm.sh/chart: zookeeper-13.7.2
+    name: langfuse-zookeeper
+  spec:
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: tcp-client
+      port: 2181
+      protocol: TCP
+      targetPort: client
+    - name: tcp-follower
+      port: 2888
+      protocol: TCP
+      targetPort: follower
+    - name: tcp-election
+      port: 3888
+      protocol: TCP
+      targetPort: election
+    selector:
+      app.kubernetes.io/component: zookeeper
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/name: zookeeper
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      
+    creationTimestamp: "2025-02-20T08:18:08Z"
+    labels:
+      app.kubernetes.io/component: zookeeper
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/name: zookeeper
+      app.kubernetes.io/version: 3.9.3
+      helm.sh/chart: zookeeper-13.7.2
+    name: langfuse-zookeeper-headless
+  spec:
+    clusterIP: None
+    clusterIPs:
+    - None
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: tcp-client
+      port: 2181
+      protocol: TCP
+      targetPort: client
+    - name: tcp-follower
+      port: 2888
+      protocol: TCP
+      targetPort: follower
+    - name: tcp-election
+      port: 3888
+      protocol: TCP
+      targetPort: election
+    publishNotReadyAddresses: true
+    selector:
+      app.kubernetes.io/component: zookeeper
+      app.kubernetes.io/instance: langfuse
+      app.kubernetes.io/name: zookeeper
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+kind: List
+metadata:

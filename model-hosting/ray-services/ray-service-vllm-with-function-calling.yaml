@@ -93,47 +93,68 @@ data:
             chat_template: Optional[str] = None,
         ):
             logger.info("VLLMDeployment is initializing...")
+            
+            # Check if function calling is enabled first
+            self.enable_function_calling = os.environ.get("ENABLE_FUNCTION_CALLING", "false").lower() == "true"
+            self.tool_call_parser = os.environ.get("TOOL_CALL_PARSER", "hermes")  # Default to hermes
+            if self.enable_function_calling:
+                logger.info(f"Function calling support is enabled with parser: {self.tool_call_parser}")
 
-            self.model_config = ModelConfig(
-                model=model,
-                task="generate",  # Corrected to match supported tasks
-                tokenizer=model,  # Use same model path for tokenizer
-                tokenizer_mode="auto",  # Default to 'auto'
-                trust_remote_code=True,  # Trust remote code for custom models
-                dtype="bfloat16",  # Use model default torch_dtype=bfloat16
-                seed=42,  # Default seed value
-                max_model_len=max_model_len,  # Already provided
-            )
+            # Initialize VLLM Engine first - let it handle model config
+            # Try to set function calling parameters, with fallback if not supported
+            engine_kwargs = {
+                "model": model,
+                "tensor_parallel_size": tensor_parallel_size,
+                "max_num_seqs": max_num_seqs,
+                "block_size": block_size,
+                "max_model_len": max_model_len,
+                "disable_log_requests": True,
+                "device": "cuda",
+                "dtype": "auto",  # Let vLLM auto-detect the best dtype
+                "trust_remote_code": True,
+            }
+            
+            # Add function calling parameters if enabled
+            if self.enable_function_calling:
+                try:
+                    engine_kwargs["enable_auto_tool_choice"] = True
+                    engine_kwargs["tool_call_parser"] = self.tool_call_parser
+                    logger.info(f"Added function calling parameters: enable_auto_tool_choice=True, tool_call_parser={self.tool_call_parser}")
+                except Exception as e:
+                    logger.warning(f"Could not set function calling parameters in engine args: {e}")
+                    logger.info("Will handle function calling at the serving layer instead")
+            
+            engine_args = AsyncEngineArgs(**engine_kwargs)
+            logger.info(f"Engine Args Initialized: {engine_args}")
 
+            try:
+                self.engine = AsyncLLMEngine.from_engine_args(engine_args)
+                logger.info("AsyncLLMEngine initialized successfully")
+            except Exception as e:
+                logger.error(f"Failed to initialize AsyncLLMEngine: {e}")
+                # If function calling parameters caused the error, try without them
+                if self.enable_function_calling and ("enable_auto_tool_choice" in str(e) or "tool_call_parser" in str(e)):
+                    logger.warning("Function calling parameters not supported, retrying without them")
+                    engine_kwargs.pop("enable_auto_tool_choice", None)
+                    engine_kwargs.pop("tool_call_parser", None)
+                    engine_args = AsyncEngineArgs(**engine_kwargs)
+                    self.engine = AsyncLLMEngine.from_engine_args(engine_args)
+                    logger.info("AsyncLLMEngine initialized successfully without function calling parameters")
+                else:
+                    raise
+            
+            # Get model config from the engine after initialization
+            self.model_config = self.engine.engine.model_config
+            
             self.models = OpenAIServingModels(
-                engine_client=None,  # Ensure it initializes later
+                engine_client=self.engine,
                 model_config=self.model_config,
                 base_model_paths=[BaseModelPath(name=model, model_path=model)]
             )
-
-            # Initialize VLLM Engine
-            engine_args = AsyncEngineArgs(
-                model=model,
-                tensor_parallel_size=tensor_parallel_size,
-                max_num_seqs=max_num_seqs,
-                block_size=block_size,
-                max_model_len=max_model_len,
-                disable_log_requests=True,
-                device="cuda",
-                dtype="bfloat16",  # Matches model config
-                trust_remote_code=True,
-            )
-            logger.info(f"Engine Args Initialized: {engine_args}")
-
-            self.engine = AsyncLLMEngine.from_engine_args(engine_args)
+            
             self.response_role = response_role
             self.chat_template = chat_template
             self.openai_serving_chat = None
-            
-            # Check if function calling is enabled
-            self.enable_function_calling = os.environ.get("ENABLE_FUNCTION_CALLING", "false").lower() == "true"
-            if self.enable_function_calling:
-                logger.info("Function calling support is enabled")
 
         async def health_check(self):
             """Health check for Ray Serve deployment"""
@@ -165,21 +186,53 @@ data:
             if not self.openai_serving_chat:
                 logger.info("Initializing OpenAIServingChat instance...")
 
-                self.openai_serving_chat = OpenAIServingChat(
-                    engine_client=self.engine,
-                    model_config=self.model_config,
-                    models=self.models,
-                    response_role=self.response_role,
-                    request_logger=None,
-                    chat_template=self.chat_template,
-                    chat_template_content_format="default",
-                    return_tokens_as_token_ids=False,
-                    enable_auto_tools=False,
-                    tool_parser=None,
-                    enable_prompt_tokens_details=False,
-                )
+                # Try to initialize with function calling parameters if supported
+                serving_kwargs = {
+                    "engine_client": self.engine,
+                    "model_config": self.model_config,
+                    "models": self.models,
+                    "response_role": self.response_role,
+                    "request_logger": None,
+                    "chat_template": self.chat_template,
+                    "chat_template_content_format": "default",
+                    "return_tokens_as_token_ids": False,
+                    "enable_prompt_tokens_details": False,
+                }
+                
+                # Add function calling parameters if enabled and supported
+                if self.enable_function_calling:
+                    try:
+                        serving_kwargs["enable_auto_tools"] = True
+                        serving_kwargs["tool_parser"] = self.tool_call_parser
+                        logger.info(f"Added function calling to serving: enable_auto_tools=True, tool_parser={self.tool_call_parser}")
+                    except Exception as e:
+                        logger.warning(f"Could not set function calling parameters in serving: {e}")
+                        logger.info("Will handle function calling manually in request processing")
 
-            logger.info(f" Received request: {request}")
+                self.openai_serving_chat = OpenAIServingChat(**serving_kwargs)
+
+            logger.info(f"Received request: {request}")
+            
+            # Handle function calling if enabled and tools are provided
+            if self.enable_function_calling and hasattr(request, "tools") and request.tools:
+                logger.info(f"Processing request with {len(request.tools)} tools")
+                
+                # Add tool instructions to the prompt for manual processing
+                tool_descriptions = []
+                for tool in request.tools:
+                    if tool.type == "function":
+                        func = tool.function
+                        tool_desc = f"Function: {func.name}\nDescription: {func.description}\nParameters: {json.dumps(func.parameters)}"
+                        tool_descriptions.append(tool_desc)
+                
+                if tool_descriptions:
+                    tools_prompt = f"\n\nAvailable functions:\n" + "\n\n".join(tool_descriptions)
+                    tools_prompt += f"\n\nTo call a function, use this format: <function_call name=\"function_name\">{{\"param1\": \"value1\", \"param2\": \"value2\"}}</function_call>"
+                    
+                    # Add tools information to the last user message
+                    if request.messages and request.messages[-1].role == "user":
+                        request.messages[-1].content += tools_prompt
+
             generator = await self.openai_serving_chat.create_chat_completion(request, raw_request)
 
             if isinstance(generator, ErrorResponse):
@@ -191,19 +244,37 @@ data:
                 assert isinstance(generator, ChatCompletionResponse)
                 response_dict = generator.model_dump()
                 
-                # Process function calls if enabled
+                # Process function calls if enabled and tools were provided
                 if self.enable_function_calling and hasattr(request, "tools") and request.tools:
                     # Extract the text from the response
                     if response_dict["choices"] and response_dict["choices"][0]["message"]["content"]:
                         text = response_dict["choices"][0]["message"]["content"]
                         
                         # Parse function calls from the text
-                        _, function_calls = parse_function_calls(text)
+                        original_text, function_calls = parse_function_calls(text)
                         
                         # Add function calls to the response if any were found
                         if function_calls:
-                            response_dict["function_calls"] = function_calls
-                            logger.info(f"Parsed function calls: {function_calls}")
+                            # Update the response format to match OpenAI's function calling format
+                            choice = response_dict["choices"][0]
+                            choice["message"]["tool_calls"] = []
+                            
+                            for i, func_call in enumerate(function_calls):
+                                tool_call = {
+                                    "id": f"call_{i}",
+                                    "type": "function",
+                                    "function": {
+                                        "name": func_call["name"],
+                                        "arguments": json.dumps(func_call["arguments"])
+                                    }
+                                }
+                                choice["message"]["tool_calls"].append(tool_call)
+                            
+                            # Remove function call text from content if present
+                            cleaned_content = re.sub(FUNCTION_CALL_PATTERN, "", text, flags=re.DOTALL).strip()
+                            choice["message"]["content"] = cleaned_content if cleaned_content else None
+                            
+                            logger.info(f"Parsed {len(function_calls)} function calls")
                 
                 return JSONResponse(content=response_dict)
 
@@ -240,6 +311,10 @@ spec:
             BLOCK_SIZE: "4096"
             # Set to true to enable function calling support
             ENABLE_FUNCTION_CALLING: "true"
+            # Tool call parser options: hermes, mistral, internlm
+            TOOL_CALL_PARSER: "hermes"
+            # Force manual function calling if vLLM native support fails
+            FORCE_MANUAL_FUNCTION_CALLING: "false"
         deployments:
           - name: VLLMDeployment
             autoscaling_config:

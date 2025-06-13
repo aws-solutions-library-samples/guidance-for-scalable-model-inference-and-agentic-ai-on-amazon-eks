@@ -29,6 +29,9 @@ importers:
       dotenv:
         specifier: ^16.4.5
         version: 16.4.7
+      langfuse:
+        specifier: ^3.30.0
+        version: 3.37.4
       node-fetch:
         specifier: ^3.3.2
         version: 3.3.2
@@ -599,6 +602,14 @@ packages:
     resolution: {integrity: sha512-HIrd50UPYmP6sqLuLbFVm75g16o0oZrVfxrsY0EEys22klz8mRoWlX9KAEDOSOR9Q34rcxsyC8oDveGrCz5uLQ==}
     hasBin: true
 
+  langfuse-core@3.37.4:
+    resolution: {integrity: sha512-yqXkQ1/8V9TxF8q6oULWPQ4cYZlUs1egN6JfGuhJSWb5x2Ymgt4Qh9of/Kz//CTM7IZgzZqvrlnx0VXhNKDITg==}
+    engines: {node: '>=18'}
+
+  langfuse@3.37.4:
+    resolution: {integrity: sha512-MxnJXkS3xqlydMKWouanghkWZb8OqoDns+NIAZoD+y/WQh1mtx40n8c0dOaT7OahzSfB9ZbWj+j+yqJww/PJYQ==}
+    engines: {node: '>=18'}
+
   lru-cache@10.4.3:
     resolution: {integrity: sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ==}
 
@@ -644,6 +655,10 @@ packages:
 
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
+
+  mustache@4.2.0:
+    resolution: {integrity: sha512-71ippSywq5Yb7/tVYyGbkBggbU8H3u5Rz56fH60jGFgr8uHwxs+aSKeqmluIVzM0m0kB7xQjKS6qPfd0b2ZoqQ==}
+    hasBin: true
 
   negotiator@1.0.0:
     resolution: {integrity: sha512-8Ofs/AUQh8MaEcrlq5xOX0CQ9ypTF5dl78mjlMNfOK08fzpgTHQRQPBxcPlEtIw0yRpws+Zo/3r+5WRby7u3Gg==}
@@ -1490,6 +1505,14 @@ snapshots:
 
   json11@2.0.2: {}
 
+  langfuse-core@3.37.4:
+    dependencies:
+      mustache: 4.2.0
+
+  langfuse@3.37.4:
+    dependencies:
+      langfuse-core: 3.37.4
+
   lru-cache@10.4.3: {}
 
   math-intrinsics@1.1.0: {}
@@ -1521,6 +1544,8 @@ snapshots:
   minipass@7.1.2: {}
 
   ms@2.1.3: {}
+
+  mustache@4.2.0: {}
 
   negotiator@1.0.0: {}
 

@@ -4,7 +4,7 @@ kind: Secret
 metadata:
   name: hf-token
 stringData:
-  hf-token: YOUR_HUGGING_FACE_TOKEN_HERE
+  hf-token: 
 
 ---
 apiVersion: v1

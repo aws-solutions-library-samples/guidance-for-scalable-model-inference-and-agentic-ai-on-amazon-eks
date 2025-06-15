@@ -1,88 +1,199 @@
-# Cost effective and Scalable Model Inference and Agentic AI on AWS Graviton with EKS
+# Cost Effective and Scalable Model Inference and Agentic AI on AWS Graviton with EKS
 
 ## Overview
-The solution implements a scalable ML inference architecture using Amazon EKS, leveraging both Graviton processors for CPU-based inference and GPU instances for accelerated inference. The system utilizes Ray Serve for model serving, deployed as containerized workloads within a Kubernetes environment.
+This solution implements a comprehensive, scalable ML inference architecture using Amazon EKS, leveraging both Graviton processors for cost-effective CPU-based inference and GPU instances for accelerated inference. The system provides a complete end-to-end platform for deploying large language models with agentic AI capabilities, including RAG (Retrieval Augmented Generation) and intelligent document processing.
 
 ## Architecture
 ![Architecture Diagram](image/arch.png)
 
 The architecture diagram illustrates our scalable ML inference solution with the following components:
 
-1. **Amazon EKS Cluster**: The foundation of our architecture, providing a managed Kubernetes environment.
+1. **Amazon EKS Cluster**: The foundation of our architecture, providing a managed Kubernetes environment with automated provisioning and configuration.
    
-2. **Karpenter Auto-scaling**: Dynamically provisions and scales compute resources based on workload demands.
+2. **Karpenter Auto-scaling**: Dynamically provisions and scales compute resources based on workload demands across multiple node pools.
    
 3. **Node Pools**:
    - **Graviton-based nodes (ARM64)**: Cost-effective CPU inference using m8g/c8g instances
    - **GPU-based nodes (x86_64)**: High-performance inference using NVIDIA GPU instances (g5, g6 families)
+   - **x86-based nodes**: General purpose compute for compatibility requirements
    
-4. **Ray Serve Deployment**:
-   - **Ray Head**: Manages the Ray cluster and coordinates workload distribution
-   - **Ray Workers**: Execute the inference tasks with either llama.cpp (on Graviton) or vLLM (on GPU)
+4. **Model Hosting Services**:
+   - **Ray Serve**: Distributed model serving with automatic scaling
+   - **Standalone Services**: Direct model deployment for specific use cases
+   - **Multi-modal Support**: Text, vision, and reasoning model capabilities
    
-5. **LiteLLM Proxy**: Acts as a unified inference API gateway, providing standardized OpenAI-compatible endpoints and handling request routing, load balancing, and fallback mechanisms across multiple model backends.
+5. **Model Gateway**: 
+   - **LiteLLM Proxy**: Unified OpenAI-compatible API gateway with load balancing and routing
+   - **Ingress Controller**: External access management with SSL termination
    
-6. **Function Calling Service**: Enables agentic AI capabilities by allowing models to interact with external APIs and services.
+6. **Agentic AI Applications**:
+   - **RAG with OpenSearch**: Intelligent document retrieval and question answering
+   - **Intelligent Document Processing (IDP)**: Automated document analysis and extraction
+   - **Multi-Agent Systems**: Coordinated AI workflows with specialized agents
    
-7. **MCP (Model Context Protocol)**: Provides augmented LLM capabilities by combining tool usage with Retrieval Augmented Generation (RAG) for enhanced context awareness.
-   
-8. **Monitoring & Observability**: Prometheus and Grafana for performance monitoring and visualization.
+7. **Observability & Monitoring**: 
+   - **Langfuse**: LLM observability and performance tracking
+   - **Prometheus & Grafana**: Infrastructure monitoring and alerting
 
 This architecture provides flexibility to choose between cost-optimized CPU inference on Graviton processors or high-throughput GPU inference based on your specific requirements, all while maintaining elastic scalability through Kubernetes and Karpenter.
 
-For networking-intensive workloads such as agent orchestration and API proxying, we deploy these components on Graviton instances to leverage their excellent price-performance ratio for concurrent connection handling. Graviton processors excel at handling high-throughput networking tasks, making them ideal for the LiteLLM proxy and agent services that manage numerous concurrent requests and API calls. This approach optimizes cost efficiency while maintaining responsive performance for these connection-oriented workloads.
+## Quick Start Guide
 
-## Prerequisites
+Follow these steps in order to set up the complete solution:
 
-### 1. EKS cluster with KubeRay Operator installed
+### Step 1: Set Up EKS Cluster
 
-You can set up the EKS cluster and install the KubeRay Operator using the provided script in the `base_eks_setup` directory:
+Set up your EKS cluster using the AWS Solutions Guidance for automated provisioning:
+
+**Follow the [AWS Solutions Guidance: Automated Provisioning of Application-Ready Amazon EKS Clusters](https://aws.amazon.com/solutions/guidance/automated-provisioning-of-application-ready-amazon-eks-clusters/)**
+
+This guidance provides:
+- Automated EKS cluster provisioning with best practices
+- Pre-configured add-ons and operators
+- Security and networking configurations
+- Monitoring and observability setup
+
+After completing the guidance, ensure your `kubectl` is configured to access the cluster:
+
+```bash
+# Verify cluster access
+kubectl cluster-info
+kubectl get nodes
+```
+
+### Step 2: Install Base Infrastructure Components
+
+Navigate to the base setup directory and run the installation script:
 
 ```bash
 cd base_eks_setup
-./provision-v2.sh
+chmod +x install_operators.sh
+./install_operators.sh
 ```
 
-This script performs the following operations:
-- Creates an EKS cluster (version 1.31) with 2 initial nodes
-- Installs required EKS add-ons (vpc-cni, coredns, eks-pod-identity-agent)
-- Installs cert-manager
-- Sets up Karpenter for auto-scaling
-- Installs the KubeRay Operator
-- Configures Prometheus and Grafana for monitoring
+This script installs:
+- KubeRay Operator for distributed model serving
+- NVIDIA GPU Operator for GPU workloads
+- GP3 storage class for optimized storage
+- All Karpenter node pools for different workload types
 
-You can modify the following variables in the script to customize your deployment:
-- `REGION`: AWS region (default: us-east-1)
-- `CLUSTER_NAME`: EKS cluster name (default: llm-eks-cluster)
+### Step 3: Deploy Model Hosting Services
 
-### 2. Karpenter node pool setup for both Graviton and x86 based GPU instances
-
-The `karpenter-pools` directory contains YAML files for configuring Karpenter node pools:
-
-- **karpenter-cpu-inference-Graviton.yaml**: Configures a node pool for Graviton-based CPU inference
-  - Uses ARM64 architecture (Graviton)
-  - Targets m7g/c7g instance types (4xlarge)
-  - Configured for on-demand instances
-  - Includes appropriate taints and labels for workload targeting
-
-- **karpenter-cpu-inference-Graviton-Spot.yaml**: Similar to above but configured for spot instances
-
-- **karpenter-cpu-agent-Graviton.yaml**: Configures a node pool for agent workloads on Graviton
-
-- **Karpenter-gpu-inference-x86.yaml**: Configures a node pool for GPU-based inference
-  - Uses x86_64 architecture
-  - Targets NVIDIA GPU instances (g5, g6 families)
-  - Configured with appropriate EBS storage and system resources
-
-To apply these configurations after the EKS cluster is set up:
+Set up the model hosting infrastructure:
 
 ```bash
-kubectl apply -f karpenter-pools/karpenter-cpu-inference-Graviton.yaml
-kubectl apply -f karpenter-pools/Karpenter-gpu-inference-x86.yaml
-kubectl apply -f karpenter-pools/Karpenter-agent-Graviton.yaml
+cd model-hosting
+chmod +x setup.sh
+./setup.sh
 ```
 
-### 3. Make sure to run all commands from the appropriate directory
+This deploys:
+- Ray service with LlamaCPP and embedding capabilities
+- Standalone vLLM reasoning service
+- Standalone vLLM vision service
+- All necessary Kubernetes resources and configurations
+
+### Step 4: Deploy Model Gateway
+
+Set up the unified API gateway:
+
+```bash
+cd model-gateway
+chmod +x setup.sh
+./setup.sh
+```
+
+This deploys:
+- LiteLLM proxy deployment
+- Load balancer and ingress configuration
+- Waits for services to be ready before proceeding
+
+**Important**: After deployment, configure LiteLLM:
+1. Access the LiteLLM web interface
+2. Login with username "admin" and password "sk-123456"
+3. Go to "Virtual Keys" on the sidebar and create a new key
+4. Mark "All Team Models" for the models field
+5. Store the generated secret key - you'll need it for the agentic applications
+
+### Step 5: Set Up Observability
+
+Deploy monitoring and observability tools:
+
+```bash
+cd model-observability
+chmod +x setup.sh
+./setup.sh
+```
+
+This installs:
+- Langfuse for LLM observability
+- Web ingress for external access
+- Service monitoring and logging
+
+**Important**: After deployment, configure Langfuse:
+1. Access Langfuse web interface
+2. Create an organization named "test"
+3. Create a project inside it named "demo"
+4. Go to "Tracing" menu and set up tracing
+5. Record the Public Key (PK) and Secret Key (SK) - you'll need these for the agentic applications
+
+### Step 6: Deploy Agentic Applications
+
+#### Option A: Intelligent Document Processing (IDP)
+
+Set up the IDP application for automated document analysis:
+
+```bash
+cd agentic-apps/agentic-idp
+
+# Create and configure environment file
+cp .env.example .env
+# Edit .env with your configuration:
+# - LLAMA_VISION_MODEL_KEY=your-litellm-virtual-key (from Step 4)
+# - API_GATEWAY_URL=your-litellm-gateway-url
+# - LANGFUSE_HOST=your-langfuse-endpoint
+# - LANGFUSE_PUBLIC_KEY=your-langfuse-public-key (from Step 5)
+# - LANGFUSE_SECRET_KEY=your-langfuse-secret-key (from Step 5)
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the IDP application
+python agentic_idp.py
+```
+
+#### Option B: RAG with OpenSearch
+
+Set up the RAG application with OpenSearch vector database:
+
+```bash
+cd agentic-apps/agentic_rag_opensearch
+
+# Set up OpenSearch cluster
+chmod +x setup-opensearch.sh
+./setup-opensearch.sh
+
+# Create and configure environment file
+cp .env.example .env
+# Edit .env with your configuration:
+# - OPENAI_API_KEY=your-litellm-virtual-key (from Step 4)
+# - OPENAI_BASE_URL=your-model-endpoint-url
+# - LANGFUSE_HOST=your-langfuse-endpoint
+# - LANGFUSE_PUBLIC_KEY=your-langfuse-public-key (from Step 5)
+# - LANGFUSE_SECRET_KEY=your-langfuse-secret-key (from Step 5)
+# Note: OPENSEARCH_ENDPOINT and AWS_REGION are automatically set by setup-opensearch.sh
+
+# Install dependencies
+pnpm install
+
+# Embed knowledge documents
+pnpm embed-knowledge
+
+# Run the multi-agent RAG application
+pnpm dev
+```
+
+## Detailed Component Information
 
 ## Deployment Options
 
@@ -100,7 +211,6 @@ Deploy an elastic Ray service hosting llama 3.2 model on Graviton:
 
 > Note: The example model uses GGUF format, optimized for llama.cpp. See [GGUF documentation](https://huggingface.co/docs/hub/en/gguf) for details. You can find out different quantization version for the model, check these hugging face repo: https://huggingface.co/bartowski or https://huggingface.co/unsloth  
 > Note: To run function call, better with reasoning model like Qwen-QwQ-32B in this example
-
 
 #### 3. Create the Kubernetes service:
 ```bash
@@ -200,66 +310,6 @@ The service will:
 2. Identify the need to call the weather function
 3. Make the appropriate API call
 4. Return the weather information in a conversational format
-
-## Deploy LLM Gateway
-
-The LLM Gateway serves as a unified API layer for accessing multiple model backends through a standardized OpenAI-compatible interface. This section guides you through deploying LiteLLM as a proxy service on your EKS cluster.
-
-### Overview
-
-LiteLLM Proxy provides:
-- A unified OpenAI-compatible API for multiple model backends
-- Load balancing and routing between different models
-- Fallback mechanisms for high availability
-- Observability and monitoring capabilities
-- Authentication and rate limiting
-
-### Deployment Steps
-
-#### 1. Configure the LiteLLM service:
-The LiteLLM service is defined in `dockerfiles/litellm/combined.yaml` and includes:
-- A ConfigMap for the LiteLLM configuration
-- A Secret for API keys and database connection
-- A Deployment for the LiteLLM proxy service
-- A ClusterIP Service to expose the proxy internally
-- An Ingress to expose the service externally via an ALB
-
-#### 2. Customize the model configuration:
-Edit the `config.yaml` section in the ConfigMap to specify your model backends:
-```yaml
-model_list: 
-  - model_name: your-model-name
-    litellm_params:
-      model: openai/your-model-name
-      api_base: http://your-model-endpoint/v1
-      api_key: os.environ/OPENAI_API_KEY
-```
-
-#### 3. Update the secrets:
-Replace the base64-encoded API keys in the Secret section with your actual keys.
-
-#### 4. Deploy the LiteLLM proxy:
-```bash
-kubectl apply -f dockerfiles/litellm/combined.yaml
-```
-
-#### 5. Access the LiteLLM proxy:
-Once deployed, you can access the LiteLLM proxy through the ALB created by the Ingress:
-```bash
-# Get the ALB URL
-kubectl get ingress litellm-ingress
-
-# Test the API
-curl -X POST https://<YOUR-ALB-URL>/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer sk-1234" \
-  -d '{
-    "model": "unsloth/DeepSeek-R1-Distill-Qwen-7B-GGUF",
-    "messages": [{"role": "user", "content": "Hello, how are you?"}]
-  }'
-```
-
-The LiteLLM proxy will route your request to the appropriate model backend based on the model name specified in the request.
 
 ## Installing Milvus Vector Database in EKS
 
@@ -373,7 +423,8 @@ This modular architecture can be extended by:
 - Implementing conversation history for multi-turn interactions
 - Deploying as a service with API endpoints
 
-## How do we measure
+## Performance Benchmarking
+
 Our client program will generate prompts with different concurrency for each run. Every run will have common GenAI related prompts and assemble them into standard HTTP requests, and concurrency calls will keep increasing until the maximum CPU usage reaches to nearly 100%. We capture the total time from when a HTTP request is initiated to when a HTTP response is received as the latency metric of model performance. We also capture output token generated per second as throughput. The test aims to reach maximum CPU utilization on the worker pods to assess the concurrency performance.
 
 Follow this guidance if you want to set it up and replicate the experiment

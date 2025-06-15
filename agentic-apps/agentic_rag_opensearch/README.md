@@ -2,6 +2,9 @@
 
 This project implements a multi-agent Large Language Model (LLM) system that combines Model Context Protocol (MCP) for tool usage and Retrieval Augmented Generation (RAG) for enhanced context awareness, using OpenSearch as the vector database.
 
+## Architecture
+![Architecture Diagram](images/arch.png)
+
 ## Project Overview
 
 This application creates a multi-agent AI system that can:
@@ -87,7 +90,7 @@ SupervisorAgent → Manages the overall workflow and coordinates all agents
 - Node.js 18+
 - pnpm or npm
 - OpenAI API key
-- AWS OpenSearch Serverless collection
+- AWS OpenSearch Domain
 - AWS credentials configured
 
 ### Installation
@@ -108,6 +111,9 @@ OPENAI_API_KEY=your-api-key
 OPENAI_BASE_URL=your-model-hosting-endpoint
 OPENSEARCH_ENDPOINT=your-opensearch-endpoint
 AWS_REGION=your-aws-region
+LANGFUSE_HOST=
+LANGFUSE_PUBLIC_KEY=
+LANGFUSE_SECRET_KEY=
 ```
 
 ### Usage

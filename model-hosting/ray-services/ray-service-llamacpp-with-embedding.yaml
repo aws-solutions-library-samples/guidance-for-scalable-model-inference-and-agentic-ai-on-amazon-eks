@@ -3,7 +3,7 @@ kind: Secret
 metadata:
   name: token-embedding
 stringData:
-  token: YOUR_HUGGING_FACE_TOKEN_HERE
+  token: HUGGING_FACE_TOKEN_HERE
   llm_api_key: sk-1234
 ---
 apiVersion: v1

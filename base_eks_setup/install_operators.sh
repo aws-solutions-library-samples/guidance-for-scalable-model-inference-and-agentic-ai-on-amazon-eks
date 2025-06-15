@@ -147,6 +147,33 @@ install_nvidia_gpu_operator() {
   success "NVIDIA GPU operator installed successfully!"
 }
 
+# Install GP3 storage class
+install_gp3_storage() {
+  log "Installing GP3 storage class..."
+  
+  if kubectl get storageclass gp3 &> /dev/null; then
+    warn "GP3 storage class already exists. Skipping..."
+  else
+    kubectl apply -f gp3.yaml
+    success "GP3 storage class installed successfully!"
+  fi
+}
+
+# Install Karpenter node pools
+install_karpenter_nodepools() {
+  log "Installing Karpenter node pools..."
+  
+  # Install all node pool configurations
+  for nodepool_file in karpenter_nodepool/*.yaml; do
+    if [ -f "$nodepool_file" ]; then
+      log "Installing node pool: $(basename "$nodepool_file")"
+      kubectl apply -f "$nodepool_file"
+    fi
+  done
+  
+  success "All Karpenter node pools installed successfully!"
+}
+
 # Verify installations
 verify_installations() {
   log "Verifying KubeRay operator installation..."
@@ -168,6 +195,16 @@ verify_installations() {
   else
     warn "NVIDIA device plugin not found. GPU operator might still be initializing."
   fi
+  
+  log "Verifying GP3 storage class..."
+  if kubectl get storageclass gp3 &> /dev/null; then
+    success "GP3 storage class is installed."
+  else
+    warn "GP3 storage class not found."
+  fi
+  
+  log "Verifying Karpenter node pools..."
+  kubectl get nodepools
 }
 
 # Main execution
@@ -178,10 +215,12 @@ main() {
   validate_eks_cluster
   install_kuberay_operator
   install_nvidia_gpu_operator
+  install_gp3_storage
+  install_karpenter_nodepools
   verify_installations
   
   success "All components installed successfully!"
-  log "Your EKS cluster now has KubeRay and NVIDIA GPU operators installed."
+  log "Your EKS cluster now has KubeRay, NVIDIA GPU operators, GP3 storage class, and Karpenter node pools installed."
 }
 
 # Execute main function

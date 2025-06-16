@@ -96,7 +96,7 @@ base64_image = encode_image(image_path)
 
 
 generation_prompt = ChatPromptTemplate.from_messages([
-    SystemMessage(content="You are an expert birth certificate verifier"),
+    SystemMessage(content="You are an expert birth certificate document processor. Extract and structure information from birth certificates, focusing on key verification fields including name, date of birth, and place of birth. Ensure accurate extraction of hospital or medical facility names for subsequent verification."),
     MessagesPlaceholder(variable_name="messages"),
     ])
 
@@ -116,7 +116,7 @@ async def generation_node(state: State) -> State:
                 "content": [
                     {
                         "type": "text",
-                        "text": "This is my birth certificate. Extract all the fields from this image and provide the information in a structured json only format, no other text or wrapper around josn. The json will be read by machine. The fields include name, date of birth, place of birth. Make sure the output only contains JSON and nothing else. Be stricit about it."
+                        "text": "This is my birth certificate. Extract all the fields from this image and provide the information in a structured json only format, no other text or wrapper around json. The json will be read by machine. The fields include name, date of birth, place of birth. Make sure the output only contains JSON and nothing else. Be strict about it."
                     },
                     {
                         "type": "image_url",
@@ -128,10 +128,19 @@ async def generation_node(state: State) -> State:
             }
         ]
     )    
-    combined_content = f"{state['messages'][0].content}\n Birth Certificate Content in json:\n f{response.choices[0].message.content}"
-    state["messages"][0].content = combined_content    
     
-    return {"messages": [await generate_report.ainvoke(state["messages"])]}
+    # Extract the JSON from the vision model response
+    vision_json = response.choices[0].message.content.strip()
+    
+    # Create a structured response that includes both the original request and the extracted JSON
+    structured_response = f"""Birth Certificate Analysis Request: {state['messages'][0].content}
+
+Extracted Birth Certificate Data (JSON):
+{vision_json}
+
+Analysis: Based on the extracted birth certificate information, I need to verify the authenticity of this document by validating the place of birth details. The extracted data shows the place of birth as specified in the JSON above, which will be verified against official hospital records and databases."""
+    
+    return {"messages": [AIMessage(content=structured_response)]}
 
 
 
@@ -144,7 +153,20 @@ reflection_prompt = ChatPromptTemplate.from_messages(
     [
         (
             "system",
-            "You are an expert business legitimacy assessor. Based on the comprehensive business data provided, assess if this is a legitimate business. Consider factors like business registration, online presence, financial indicators, and verification notes. Return a JSON response with 'confidence_score' (0.0-1.0) and 'message' fields. For businesses with verified registration, active online presence, and positive indicators but some risk factors or limited history, use confidence scores between 0.6-0.79 to indicate legitimate but requires monitoring. Your response must be strictly JSON format only, machine parseable, with no additional text or wrappers."
+            "You are an expert birth certificate verification assessor. Your task is to evaluate birth certificate legitimacy based on place of birth verification results.\n\n"
+            "ASSESSMENT CRITERIA:\n"
+            "1. PRIMARY FACTOR - Hospital/Place Verification:\n"
+            "   - If place_verified=true and confidence_score >= 0.90: High confidence (0.85-0.95)\n"
+            "   - If place_verified=true and confidence_score 0.80-0.89: Good confidence (0.75-0.84)\n"
+            "   - If place_verified=true and confidence_score 0.70-0.79: Moderate confidence (0.65-0.74)\n"
+            "   - If place_verified=false or confidence_score < 0.70: Low confidence (0.20-0.40)\n\n"
+            "2. SUPPORTING FACTORS (adjust +/- 0.05):\n"
+            "   - Hospital status (Active vs Inactive)\n"
+            "   - Verification sources quality\n"
+            "   - Contact information availability\n\n"
+            "CRITICAL: You must respond with ONLY a valid JSON object in this exact format:\n"
+            '{{\"confidence_score\": 0.XX, \"message\": \"explanation here\"}}\n\n'
+            "Do not include any other text, thinking, or formatting. Just the JSON object."
         ),
         MessagesPlaceholder(variable_name="messages"),
     ]
@@ -159,16 +181,53 @@ async def reflection_node(state: State) -> State:
     cls_map = {"ai": HumanMessage, "human": AIMessage}
     print("***********************")
     print(state["messages"])
-    # print("***********************")
-    # print(cls_map)
-    # print("***********************")
     
     translated = [state["messages"][0]] + [
         cls_map[msg.type](content=msg.content) for msg in state["messages"][1:]
     ]
-    res = await reflect_on_report.ainvoke(translated)
-    # Treat reflection as human feedback
-    return {"messages": [HumanMessage(content=res.content)]}
+    
+    # Try multiple times to get proper JSON response
+    max_attempts = 3
+    for attempt in range(max_attempts):
+        try:
+            # Create proper input for the prompt template
+            prompt_input = {"messages": translated}
+            res = await reflect_on_report.ainvoke(prompt_input)
+            response_content = res.content.strip()
+            
+            print(f"Reflection attempt {attempt + 1}: {response_content[:200]}...")
+            
+            # Check if response contains valid JSON structure
+            import re
+            if '"confidence_score"' in response_content and '"message"' in response_content:
+                # Try to extract and validate JSON
+                json_pattern = r'\{[^{}]*"confidence_score"[^{}]*"message"[^{}]*\}'
+                json_match = re.search(json_pattern, response_content, re.DOTALL)
+                
+                if json_match:
+                    try:
+                        json_str = json_match.group()
+                        json.loads(json_str)  # Validate JSON
+                        print(f"✓ Valid JSON found on attempt {attempt + 1}")
+                        return {"messages": [HumanMessage(content=response_content)]}
+                    except json.JSONDecodeError:
+                        pass
+            
+            # If no valid JSON, try with more explicit prompt
+            if attempt < max_attempts - 1:
+                print(f"⚠ Attempt {attempt + 1} failed, retrying with more explicit prompt...")
+                # Add more explicit instruction for next attempt
+                translated.append(HumanMessage(content="Please respond with ONLY a JSON object in this exact format: {\"confidence_score\": 0.XX, \"message\": \"your explanation\"}. No other text."))
+            
+        except Exception as e:
+            print(f"Error in reflection attempt {attempt + 1}: {e}")
+            if attempt == max_attempts - 1:
+                # Fallback response for final attempt
+                fallback_response = '{"confidence_score": 0.5, "message": "Unable to complete automated assessment due to processing error. Manual review recommended."}'
+                return {"messages": [HumanMessage(content=fallback_response)]}
+    
+    # If all attempts failed, return the last response anyway
+    return {"messages": [HumanMessage(content=response_content)]}
 
 # Build the graph
 builder = StateGraph(State)
@@ -194,48 +253,94 @@ builder.add_edge("human_approval", END)
 async def route_after_reflection(state: State) -> str:
     """
     Dynamic router to decide between automatic or human approval
-    based on reflection output
+    based on reflection output focusing on hospital verification confidence
     """
     last_message = state["messages"][-1].content
     
-    # Convert the message to lowercase for case-insensitive matching
-    message_lower = last_message.lower()
-    
-    print("***********************")
-    print(f"Message Lower is ==> {message_lower}")
-    print("***********************")
-    print(f"state is {state}")
+    print("=== REFLECTION ROUTING ANALYSIS ===")
+    print(f"Raw reflection message: {last_message}")
+    print("=" * 50)
     
     try:
         # Clean up the message to extract JSON
-        message_lower = message_lower.replace("```json", "").replace("```", "").replace("external processing results:", "")
+        cleaned_message = last_message.strip()
         
-        # Handle thinking tags from qwen3-vllm model
-        if "<think>" in message_lower and "</think>" in message_lower:
-            # Extract content after </think>
-            message_lower = message_lower.split("</think>")[-1].strip()
+        # Handle QwQ model thinking tags - extract content after </think>
+        if "<think>" in cleaned_message and "</think>" in cleaned_message:
+            # Extract content after the last </think>
+            parts = cleaned_message.split("</think>")
+            if len(parts) > 1:
+                cleaned_message = parts[-1].strip()
         
-        # Try to find JSON in the message
+        # Remove markdown formatting
+        cleaned_message = cleaned_message.replace("```json", "").replace("```", "").strip()
+        
+        # Try multiple JSON extraction approaches
+        confidence_score = None
+        message_text = ""
+        
+        # Approach 1: Look for complete JSON object
         import re
-        json_match = re.search(r'\{[^}]*"confidence_score"[^}]*\}', message_lower)
+        json_pattern = r'\{[^{}]*"confidence_score"[^{}]*"message"[^{}]*\}'
+        json_match = re.search(json_pattern, cleaned_message, re.DOTALL)
+        
         if json_match:
-            json_str = json_match.group()
-            j = json.loads(json_str)
-            print(f"Message is JSON {j.get('confidence_score', 0)}")
-            requires_human_review = j.get("confidence_score", 0) < 0.8
+            try:
+                json_str = json_match.group()
+                reflection_result = json.loads(json_str)
+                confidence_score = reflection_result.get("confidence_score")
+                message_text = reflection_result.get("message", "")
+            except json.JSONDecodeError:
+                pass
+        
+        # Approach 2: Extract confidence_score value directly
+        if confidence_score is None:
+            score_pattern = r'"confidence_score":\s*([0-9]*\.?[0-9]+)'
+            score_match = re.search(score_pattern, cleaned_message)
+            if score_match:
+                confidence_score = float(score_match.group(1))
+                
+                # Try to extract message too
+                msg_pattern = r'"message":\s*"([^"]*)"'
+                msg_match = re.search(msg_pattern, cleaned_message)
+                if msg_match:
+                    message_text = msg_match.group(1)
+        
+        # Approach 3: Look for any decimal number that could be confidence score
+        if confidence_score is None:
+            # Look for numbers between 0 and 1 that could be confidence scores
+            number_pattern = r'\b(0\.[0-9]+|1\.0+|0)\b'
+            numbers = re.findall(number_pattern, cleaned_message)
+            if numbers:
+                # Take the first reasonable confidence score
+                for num_str in numbers:
+                    num = float(num_str)
+                    if 0.0 <= num <= 1.0:
+                        confidence_score = num
+                        break
+        
+        if confidence_score is not None:
+            print(f"✓ Successfully extracted confidence score: {confidence_score}")
+            print(f"✓ Message: {message_text}")
+            
+            # Hospital verification focused threshold
+            requires_human_review = confidence_score < 0.75
+            
+            if requires_human_review:
+                print(f"→ ROUTING TO HUMAN REVIEW (confidence {confidence_score} < 0.75)")
+                return "human_approval"
+            else:
+                print(f"→ ROUTING TO AUTOMATIC APPROVAL (confidence {confidence_score} >= 0.75)")
+                return "automatic_approval"
         else:
-            print("No JSON with confidence_score found, defaulting to human review")
-            requires_human_review = True
+            print("✗ No confidence score found in reflection")
+            print("→ DEFAULTING TO HUMAN REVIEW")
+            return "human_approval"
             
     except Exception as e:
-        print(f"Error parsing JSON: {e}")
-        print("Message is not valid JSON, defaulting to human review")
-        requires_human_review = True
-
-    if requires_human_review:
+        print(f"✗ Unexpected error in routing: {e}")
+        print("→ DEFAULTING TO HUMAN REVIEW")
         return "human_approval"
-    else:
-        return "automatic_approval"
 
 builder.add_conditional_edges(
     "reflect",
@@ -269,7 +374,7 @@ from langfuse.langchain import CallbackHandler
 langfuse_handler = CallbackHandler()
 
 config = {"configurable": {"thread_id": "1"}, "callbacks": [langfuse_handler]}
-topic = "Plan to start working with a person. Need to verify how legitimate is this person."
+topic = "Verify the authenticity of this birth certificate by analyzing the document information and validating the place of birth details."
 
 
 async def run_agent():
@@ -283,12 +388,24 @@ async def run_agent():
         config,
     ):
         if "generate" in event:
-            print("=== Generated Report ===")
+            print("=== BIRTH CERTIFICATE EXTRACTION ===")
             print(event["generate"]["messages"][-1].content)
             print("\n")
+        elif "external_process" in event:
+            print("=== HOSPITAL VERIFICATION RESULTS ===")
+            print(event["external_process"]["messages"][-1].content)
+            print("\n")
         elif "reflect" in event:
-            print("=== Reflection ===")
+            print("=== FINAL VERIFICATION ASSESSMENT ===")
             print(event["reflect"]["messages"][-1].content)
+            print("\n")
+        elif "automatic_approval" in event:
+            print("=== ✅ AUTOMATIC APPROVAL ===")
+            print("Birth certificate verification passed automated checks")
+            print("\n")
+        elif "human_approval" in event:
+            print("=== 👤 HUMAN REVIEW REQUIRED ===")
+            print("Birth certificate requires manual verification")
             print("\n")
 
 import asyncio

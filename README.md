@@ -39,9 +39,51 @@ This architecture provides flexibility to choose between cost-optimized CPU infe
 
 ## Quick Start Guide
 
-Follow these steps in order to set up the complete solution:
+We provide two approaches to set up the complete solution:
 
-### Step 1: Set Up EKS Cluster
+### Option 1: Automated Setup with Makefile (Recommended)
+
+For the fastest and most reliable setup, use our automated Makefile:
+
+#### Prerequisites
+- EKS cluster set up following the [AWS Solutions Guidance: Automated Provisioning of Application-Ready Amazon EKS Clusters](https://aws.amazon.com/solutions/guidance/automated-provisioning-of-application-ready-amazon-eks-clusters/)
+- `kubectl` configured to access your cluster
+- Required CLI tools installed (`pnpm`, `pip`, etc.)
+
+#### Complete Installation
+```bash
+# Install all core components (base infrastructure, models, gateway, observability)
+make install
+
+# Or for development setup only (base + models + gateway)
+make dev-setup
+```
+
+#### Individual Components
+```bash
+# Install specific components as needed
+make setup-base           # Base infrastructure
+make setup-models         # Model hosting services
+make setup-gateway        # LiteLLM proxy gateway
+make setup-observability  # Langfuse monitoring
+make setup-milvus         # Milvus vector database
+make setup-idp            # Intelligent Document Processing
+make setup-rag            # RAG with OpenSearch
+```
+
+#### Utility Commands
+```bash
+make help                 # Show all available targets
+make status               # Check deployment status
+make verify-cluster       # Verify EKS cluster access
+make clean                # Remove all deployments
+```
+
+### Option 2: Manual Step-by-Step Setup
+
+If you prefer manual control or need to customize the installation:
+
+#### Step 1: Set Up EKS Cluster
 
 Set up your EKS cluster using the AWS Solutions Guidance for automated provisioning:
 
@@ -61,7 +103,7 @@ kubectl cluster-info
 kubectl get nodes
 ```
 
-### Step 2: Install Base Infrastructure Components
+#### Step 2: Install Base Infrastructure Components
 
 Navigate to the base setup directory and run the installation script:
 
@@ -77,7 +119,7 @@ This script installs:
 - GP3 storage class for optimized storage
 - All Karpenter node pools for different workload types
 
-### Step 3: Deploy Model Hosting Services
+#### Step 3: Deploy Model Hosting Services
 
 Set up the model hosting infrastructure:
 
@@ -93,7 +135,7 @@ This deploys:
 - Standalone vLLM vision service
 - All necessary Kubernetes resources and configurations
 
-### Step 4: Deploy Model Gateway
+#### Step 4: Deploy Model Gateway
 
 Set up the unified API gateway:
 
@@ -115,7 +157,7 @@ This deploys:
 4. Mark "All Team Models" for the models field
 5. Store the generated secret key - you'll need it for the agentic applications
 
-### Step 5: Set Up Observability
+#### Step 5: Set Up Observability
 
 Deploy monitoring and observability tools:
 
@@ -137,9 +179,9 @@ This installs:
 4. Go to "Tracing" menu and set up tracing
 5. Record the Public Key (PK) and Secret Key (SK) - you'll need these for the agentic applications
 
-### Step 6: Deploy Agentic Applications
+#### Step 6: Deploy Agentic Applications
 
-#### Option A: Intelligent Document Processing (IDP)
+##### Option A: Intelligent Document Processing (IDP)
 
 Set up the IDP application for automated document analysis:
 
@@ -162,7 +204,7 @@ pip install -r requirements.txt
 python agentic_idp.py
 ```
 
-#### Option B: RAG with OpenSearch
+##### Option B: RAG with OpenSearch
 
 Set up the RAG application with OpenSearch vector database:
 
@@ -191,6 +233,108 @@ pnpm embed-knowledge
 
 # Run the multi-agent RAG application
 pnpm dev
+```
+
+## Post-Installation Configuration
+
+After running either installation method, you'll need to configure the following:
+
+### LiteLLM Configuration
+1. Access the LiteLLM web interface
+2. Login with username "admin" and password "sk-123456"
+3. Go to "Virtual Keys" on the sidebar and create a new key
+4. Mark "All Team Models" for the models field
+5. Store the generated secret key for use in agentic applications
+
+### Langfuse Configuration
+1. Access Langfuse web interface
+2. Create an organization named "test"
+3. Create a project inside it named "demo"
+4. Go to "Tracing" menu and set up tracing
+5. Record the Public Key (PK) and Secret Key (SK) for use in agentic applications
+
+## Makefile Reference
+
+The Makefile provides comprehensive automation for the entire deployment process. Here's a detailed breakdown of all available targets:
+
+### Core Installation Targets
+
+| Target | Description | Dependencies |
+|--------|-------------|--------------|
+| `make install` | Complete installation of all core components | `verify-cluster`, `setup-base`, `setup-models`, `setup-gateway`, `setup-observability` |
+| `make dev-setup` | Quick development setup (core components only) | `verify-cluster`, `setup-base`, `setup-models`, `setup-gateway` |
+
+### Individual Component Targets
+
+| Target | Description | What it installs |
+|--------|-------------|------------------|
+| `make setup-base` | Base infrastructure components | KubeRay Operator, NVIDIA GPU Operator, GP3 storage class, Karpenter node pools |
+| `make setup-models` | Model hosting services | Ray service with LlamaCPP, vLLM reasoning service, vLLM vision service |
+| `make setup-gateway` | Model gateway | LiteLLM proxy deployment, load balancer, ingress configuration |
+| `make setup-observability` | Monitoring and observability | Langfuse for LLM observability, web ingress |
+| `make setup-milvus` | Vector database | Milvus standalone deployment with cert-manager and EBS storage |
+| `make setup-idp` | Intelligent Document Processing | Environment setup and dependency installation |
+| `make setup-rag` | RAG with OpenSearch | OpenSearch cluster setup and Node.js dependencies |
+
+### Utility Targets
+
+| Target | Description | Use case |
+|--------|-------------|----------|
+| `make help` | Show all available targets and prerequisites | Getting started, reference |
+| `make verify-cluster` | Verify EKS cluster access | Troubleshooting, pre-installation check |
+| `make status` | Check deployment status across all namespaces | Monitoring, troubleshooting |
+| `make clean` | Remove all deployments | Cleanup, fresh start |
+| `make setup-function-calling` | Deploy function calling service | Agentic AI with external tool integration |
+| `make setup-benchmark` | Performance benchmarking setup instructions | Performance testing |
+
+### Advanced Features
+
+The Makefile includes several advanced features for better user experience:
+
+- **Sequential Dependencies**: Each target automatically runs its prerequisites
+- **Environment File Management**: Automatically creates `.env` templates with configuration instructions
+- **Error Handling**: Graceful handling of missing files and failed operations
+- **Status Feedback**: Clear progress indicators and next-step instructions
+- **Configuration Reminders**: Important post-deployment configuration steps for LiteLLM and Langfuse
+
+### Example Workflows
+
+#### Complete Setup
+```bash
+# One command to set up everything
+make install
+```
+
+#### Development Workflow
+```bash
+# Quick setup for development
+make dev-setup
+
+# Add specific components as needed
+make setup-milvus
+make setup-idp
+```
+
+#### Troubleshooting
+```bash
+# Check cluster connectivity
+make verify-cluster
+
+# Check deployment status
+make status
+
+# Clean up and start fresh
+make clean
+make install
+```
+
+#### Component-by-Component Setup
+```bash
+# Install components individually with full control
+make setup-base
+make setup-models
+make setup-gateway
+make setup-observability
 ```
 
 ## Detailed Component Information

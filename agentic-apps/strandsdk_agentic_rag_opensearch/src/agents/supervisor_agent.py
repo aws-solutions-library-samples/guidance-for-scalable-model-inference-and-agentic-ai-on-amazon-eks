@@ -8,6 +8,7 @@ from strands_tools import file_read, file_write
 from ..config import config
 from ..utils.logging import log_title
 from ..utils.langfuse_config import langfuse_config
+from ..utils.model_providers import get_reasoning_model
 from ..tools.embedding_retriever import EmbeddingRetriever
 
 logger = logging.getLogger(__name__)
@@ -127,7 +128,7 @@ def check_knowledge_status() -> str:
 
 # Create the supervisor agent
 supervisor_agent = Agent(
-    model=config.DEFAULT_MODEL,
+    model=get_reasoning_model(),
     tools=[search_knowledge_base, check_knowledge_status, file_read, file_write],
     system_prompt="""
 You are SupervisorMaster, an intelligent orchestrating agent for a sophisticated multi-agent RAG system. Your role is to:
@@ -176,7 +177,7 @@ def supervisor_agent_with_langfuse(query: str) -> str:
                 input={"query": query},
                 metadata={
                     "agent_type": "supervisor",
-                    "model": config.DEFAULT_MODEL,
+                    "model": str(get_reasoning_model()),
                     "timestamp": datetime.now().isoformat()
                 },
                 trace_id=trace_id

@@ -14,6 +14,7 @@ from ..tools.embedding_retriever import EmbeddingRetriever
 from ..config import config
 from ..utils.logging import log_title
 from ..utils.langfuse_config import langfuse_config
+from ..utils.model_providers import get_reasoning_model
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +157,7 @@ def embed_knowledge_files() -> str:
 
 # Create the knowledge agent
 knowledge_agent = Agent(
-    model=config.DEFAULT_MODEL,
+    model=get_reasoning_model(),
     tools=[scan_knowledge_directory, embed_knowledge_files, file_read, file_write],
     system_prompt="""
 You are KnowledgeKeeper, a specialized agent for managing knowledge base operations. Your capabilities include:
@@ -198,7 +199,7 @@ def knowledge_agent_with_langfuse(query: str) -> str:
         input_data={"query": query},
         metadata={
             "agent_type": "knowledge",
-            "model": config.DEFAULT_MODEL,
+            "model": str(get_reasoning_model()),
             "timestamp": datetime.now().isoformat()
         }
     )

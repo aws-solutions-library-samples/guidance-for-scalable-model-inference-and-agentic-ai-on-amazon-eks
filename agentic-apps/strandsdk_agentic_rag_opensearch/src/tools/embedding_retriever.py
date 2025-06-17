@@ -15,10 +15,10 @@ class EmbeddingRetriever:
     """Handles embedding generation and retrieval operations."""
     
     def __init__(self, embedding_model: str = None):
-        self.embedding_model = embedding_model or "llamacpp-embedding"
+        self.embedding_model = embedding_model or config.EMBEDDING_MODEL
         self.vector_store = OpenSearchVectorStore()
-        self.embedding_endpoint = config.OPENAI_BASE_URL
-        self.api_key = config.OPENAI_API_KEY
+        self.embedding_endpoint = config.EMBEDDING_BASE_URL
+        self.api_key = config.EMBEDDING_API_KEY
         self.target_dimension = 384  # Target dimension for embeddings
     
     def embed_document(self, document: str) -> List[float]:

@@ -10,6 +10,7 @@ from mcp import stdio_client, StdioServerParameters
 from ..config import config
 from ..utils.logging import log_title
 from ..utils.langfuse_config import langfuse_config
+from ..utils.model_providers import get_reasoning_model
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,7 @@ def execute_with_mcp_tools(task_description: str, context: str = "") -> str:
 
 # Create the MCP agent with available tools
 mcp_agent = Agent(
-    model=config.DEFAULT_MODEL,
+    model=get_reasoning_model(),
     tools=[execute_with_mcp_tools, file_read, file_write, shell],
     system_prompt="""
 You are ToolMaster, a specialized agent for executing tasks using various tools including MCP (Model Context Protocol) tools. Your capabilities include:
@@ -119,7 +120,7 @@ def mcp_agent_with_langfuse(query: str) -> str:
         input_data={"query": query},
         metadata={
             "agent_type": "mcp",
-            "model": config.DEFAULT_MODEL,
+            "model": str(get_reasoning_model()),
             "timestamp": datetime.now().isoformat()
         }
     )

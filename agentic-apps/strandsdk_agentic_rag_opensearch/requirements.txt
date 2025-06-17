@@ -1,9 +1,11 @@
 # Strands SDK and core dependencies
 strands-agents>=0.1.0
 strands-agents-tools>=0.1.0
+strands-agents[litellm]>=0.1.0
 
 # OpenAI and LLM dependencies
 openai>=1.0.0
+litellm>=1.0.0
 
 # MCP dependencies
 mcp>=1.0.0

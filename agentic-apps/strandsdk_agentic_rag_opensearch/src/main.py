@@ -33,7 +33,9 @@ def main():
         logger.info("Starting Multi-Agent RAG System with Strands SDK")
         logger.info(f"OpenSearch Endpoint: {config.OPENSEARCH_ENDPOINT}")
         logger.info(f"Knowledge Directory: {config.KNOWLEDGE_DIR}")
-        logger.info(f"Default Model: {config.DEFAULT_MODEL}")
+        logger.info(f"Reasoning Model: {config.REASONING_MODEL}")
+        logger.info(f"Embedding Model: {config.EMBEDDING_MODEL}")
+        logger.info(f"LiteLLM Endpoint: {config.LITELLM_BASE_URL}")
         logger.info(f"Langfuse Enabled: {config.is_langfuse_enabled()}")
         
         # Interactive mode

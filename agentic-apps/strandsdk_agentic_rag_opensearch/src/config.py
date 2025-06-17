@@ -10,10 +10,20 @@ load_dotenv()
 class Config:
     """Configuration class for the application."""
     
-    # OpenAI Configuration
+    # LiteLLM Configuration for Reasoning Models
+    LITELLM_API_KEY: str = os.getenv("LITELLM_API_KEY", os.getenv("OPENAI_API_KEY", ""))
+    LITELLM_BASE_URL: str = os.getenv("LITELLM_BASE_URL", os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"))
+    REASONING_MODEL: str = os.getenv("REASONING_MODEL", "qwen-qwq-32b-preview")
+    
+    # Embedding Configuration (separate from reasoning)
+    EMBEDDING_API_KEY: str = os.getenv("EMBEDDING_API_KEY", os.getenv("OPENAI_API_KEY", ""))
+    EMBEDDING_BASE_URL: str = os.getenv("EMBEDDING_BASE_URL", os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"))
+    EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "llamacpp-embedding")
+    
+    # Legacy OpenAI Configuration (for backward compatibility)
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     OPENAI_BASE_URL: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-    DEFAULT_MODEL: str = os.getenv("DEFAULT_MODEL", "us.anthropic.claude-3-7-sonnet-20250219-v1:0")
+    DEFAULT_MODEL: str = os.getenv("DEFAULT_MODEL", os.getenv("REASONING_MODEL", "qwen-qwq-32b-preview"))
     
     # AWS Configuration
     AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
@@ -27,7 +37,7 @@ class Config:
     # Application Configuration
     KNOWLEDGE_DIR: str = os.getenv("KNOWLEDGE_DIR", "knowledge")
     OUTPUT_DIR: str = os.getenv("OUTPUT_DIR", "output")
-    EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+    EMBEDDING_ENDPOINT: str = os.getenv("EMBEDDING_ENDPOINT", "")
     
     # Vector Search Configuration
     VECTOR_INDEX_NAME: str = os.getenv("VECTOR_INDEX_NAME", "knowledge-embeddings")
@@ -42,7 +52,7 @@ class Config:
     def validate_config(cls) -> None:
         """Validate required configuration."""
         required_vars = [
-            ("OPENAI_API_KEY", cls.OPENAI_API_KEY),
+            ("LITELLM_API_KEY", cls.LITELLM_API_KEY),
             ("OPENSEARCH_ENDPOINT", cls.OPENSEARCH_ENDPOINT),
         ]
         

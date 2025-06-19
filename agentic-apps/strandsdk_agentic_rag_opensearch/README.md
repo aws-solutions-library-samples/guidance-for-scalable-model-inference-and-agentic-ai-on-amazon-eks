@@ -86,21 +86,14 @@ TOP_K_RESULTS=5
 
 ## 🏃‍♂️ Usage
 
-### 1. Start the MCP Filesystem Server (Optional)
-
-```bash
-# In one terminal, start the MCP server
-python mcp_filesystem_server.py
-```
-
-### 2. Embed Knowledge Documents
+### 1. Embed Knowledge Documents
 
 ```bash
 # Process and embed all knowledge documents
 python -c "from src.agents.knowledge_agent import knowledge_agent; print(knowledge_agent('Please embed all knowledge files'))"
 ```
 
-### 3. Run the Multi-Agent System
+### 2. Run the Multi-Agent System
 
 ```bash
 # Start the interactive system
@@ -111,7 +104,7 @@ python -m src.main
 python -c "from src.main import run_single_query; print(run_single_query('What is Bell\'s palsy?'))"
 ```
 
-### 4. Test the System
+### 3. Test the System
 
 ```bash
 # Run comprehensive tests

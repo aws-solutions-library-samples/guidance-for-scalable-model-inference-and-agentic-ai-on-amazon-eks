@@ -26,6 +26,13 @@ out/
 .yarn/build-state.yml
 .yarn/install-state.gz
 
+# Python virtual environments
+venv/
+env/
+.venv/
+.env/
+ENV/
+
 # Editor directories and files
 .idea/
 .vscode/

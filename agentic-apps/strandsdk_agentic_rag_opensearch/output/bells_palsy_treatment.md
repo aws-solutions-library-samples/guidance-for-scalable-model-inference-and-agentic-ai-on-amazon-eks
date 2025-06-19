@@ -1,20 +1,21 @@
-# Bell's Palsy Treatment Overview
+# Bell's Palsy Treatment Guide
+## Overview
+Bell's palsy is a sudden, unilateral facial paralysis of unknown origin (idiopathic). It requires immediate evaluation to rule out other causes like stroke, infections, or tumors, as treatment depends on accurate diagnosis.
 
-**Bell's palsy** is a sudden, unilateral facial paralysis of unknown cause (idiopathic). The **critical first step in treatment** is confirming a **diagnosis of exclusion**, meaning other causes of facial weakness must be ruled out through systematic evaluation.
+## Key Initial Treatment Consideration
+The **most critical aspect of initial treatment** is **confirming Bell's palsy as a diagnosis of exclusion**. This involves:
+- A thorough neurological exam to assess facial nerve function.
+- Ruling out alternative causes (e.g., Lyme disease, Ramsay Hunt syndrome, acoustic neuroma).
+- No immediate medication until other conditions are excluded.
 
-## Key Management Steps:
-1. **Diagnosis of Exclusion**
-   - Conduct thorough neurological exams and imaging (MRI/CT) to exclude conditions like stroke, infections, tumors, or Lyme disease.
-   - No specific treatment can be initiated until other pathologies are excluded.
-2. **Post-Diagnosis Care**
-   - **Corticosteroids** (e.g., prednisone) are first-line therapy to reduce inflammation.
-   - Antivirals may be considered in certain cases (evidence mixed).
-   - Eye protection (e.g., lubricating drops, eye patches) for patients unable to close their eyelids.
-3. **Prognosis**
-   - Most patients recover fully within 6–12 months.
+## Recommended Management
+1. **Steroids**: High-quality evidence supports **oral corticosteroids** (e.g., prednisone) to reduce inflammation.
+2. **Antivirals**: Controversial; some guidelines recommend **antiviral therapy** (e.g., valacyclovir) in combination with steroids for severe cases.
+3. **Monitoring**: Close follow-up to ensure improvement and detect complications like corneal damage (use eye protection/saline drops).
 
-## Limitations of Current Data
-- The provided sources focus on diagnostic rigor but lack specifics on treatment protocols (e.g., dosages, therapy duration).
-- Always confirm with updated clinical guidelines for detailed management steps.
+## Prognosis
+- Most patients recover fully within 3–6 months.
+- Severe cases may require physical therapy or surgical intervention if recovery is incomplete.
 
-**Source**: Data derived from *q_c_data.csv* emphasizing Bell's palsy as a diagnosis of exclusion.
+## Sources
+- Derived from systematic evaluation protocols for acute facial paralysis (q_c_data.csv).

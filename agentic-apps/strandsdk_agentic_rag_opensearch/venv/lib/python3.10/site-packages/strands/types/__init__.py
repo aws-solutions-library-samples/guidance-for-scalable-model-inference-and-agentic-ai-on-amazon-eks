@@ -1,1 +1,0 @@
-"""SDK type definitions."""

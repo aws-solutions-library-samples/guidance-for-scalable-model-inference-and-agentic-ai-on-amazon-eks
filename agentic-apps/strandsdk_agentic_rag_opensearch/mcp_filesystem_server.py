@@ -187,5 +187,6 @@ if __name__ == "__main__":
     print("- get_path_info: Get file/directory information")
     print("\nPress Ctrl+C to stop the server")
     
+    mcp = FastMCP("my mcp", port=8001)
     # Run the server with Streamable HTTP transport
-    mcp.run(transport="streamable-http", port=8001)
+    mcp.run(transport="streamable-http")

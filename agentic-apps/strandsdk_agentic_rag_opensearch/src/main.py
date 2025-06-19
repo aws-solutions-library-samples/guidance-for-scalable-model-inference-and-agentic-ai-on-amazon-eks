@@ -73,6 +73,11 @@ def run_interactive_mode():
             print("\n🔄 Processing your request...")
             
             try:
+                # Limit query length to avoid context window issues
+                if len(user_input) > 500:
+                    print("⚠️ Query is too long, truncating to 500 characters...")
+                    user_input = user_input[:500]
+                
                 # Use the Langfuse-enabled supervisor agent if Langfuse is configured
                 if config.is_langfuse_enabled():
                     response = supervisor_agent_with_langfuse(user_input)
@@ -99,16 +104,27 @@ def run_single_query(query: str) -> Optional[str]:
     try:
         config.validate_config()
         
+        # Limit query length to avoid context window issues
+        if len(query) > 500:
+            logging.warning("Query too long, truncating to 500 characters")
+            query = query[:500]
+        
         # Use the Langfuse-enabled supervisor agent if Langfuse is configured
         if config.is_langfuse_enabled():
             response = supervisor_agent_with_langfuse(query)
         else:
             response = supervisor_agent(query)
             
-        return str(response)
+        # Limit response length if needed
+        response_str = str(response)
+        if len(response_str) > 4000:
+            logging.warning("Response too long, truncating to 4000 characters")
+            response_str = response_str[:4000] + "... [Response truncated due to length]"
+            
+        return response_str
     except Exception as e:
         logging.error(f"Single query execution failed: {e}")
-        return None
+        return f"Error processing query: {str(e)}"
 
 if __name__ == "__main__":
     main()

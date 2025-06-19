@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "strands": {
+      "command": "uvx",
+      "args": [],
+      "env": {},
+      "timeout": 120000
+    },
+    "awslabs.eks-mcp-server": {
+      "command": "uvx",
+      "args": [],
+      "env": {},
+      "timeout": 120000
+    }
+  }
+}

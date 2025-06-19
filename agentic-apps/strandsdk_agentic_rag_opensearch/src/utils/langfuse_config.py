@@ -10,6 +10,21 @@ except ImportError:
     LANGFUSE_AVAILABLE = False
     Langfuse = None
 
+class LangfuseSpanWrapper:
+    """Wrapper for Langfuse spans to handle API differences."""
+    def __init__(self, span):
+        self.span = span
+    
+    def end(self, **kwargs):
+        """End the span, handling different API versions."""
+        try:
+            # For Langfuse 3.x
+            if hasattr(self.span, 'end'):
+                # Just call end without parameters
+                self.span.end()
+        except Exception as e:
+            print(f"Warning: Failed to end span: {e}")
+
 class LangfuseConfig:
     """Langfuse configuration and trace management."""
     
@@ -44,15 +59,15 @@ class LangfuseConfig:
             return None
         
         try:
-            # Use the correct Langfuse 3.x API
+            # For Langfuse 3.x
             trace_id = self.client.create_trace_id()
+            # Use start_span without trace_id parameter
             trace = self.client.start_span(
                 name=name,
                 input=input_data,
-                metadata=metadata or {},
-                trace_id=trace_id
+                metadata=metadata or {}
             )
-            return trace
+            return LangfuseSpanWrapper(trace)
         except Exception as e:
             print(f"Failed to create trace: {e}")
             return None
@@ -63,13 +78,13 @@ class LangfuseConfig:
             return None
         
         try:
-            # Create a child span
+            # For Langfuse 3.x
             span = self.client.start_span(
                 name=name,
                 input=input_data,
                 metadata=metadata or {}
             )
-            return span
+            return LangfuseSpanWrapper(span)
         except Exception as e:
             print(f"Failed to create span: {e}")
             return None

@@ -4,18 +4,19 @@ import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from strands import Agent, tool
-from strands_tools import file_read, file_write
+from strands_tools import file_read
 from ..config import config
 from ..utils.logging import log_title
 from ..utils.langfuse_config import langfuse_config
 from ..utils.model_providers import get_reasoning_model
 from ..tools.embedding_retriever import EmbeddingRetriever
+from .mcp_agent import file_write  # Use the wrapped file_write from mcp_agent
 
 logger = logging.getLogger(__name__)
 
 # Create tools for the supervisor agent
 @tool
-def search_knowledge_base(query: str, top_k: int = 5) -> str:
+def search_knowledge_base(query: str, top_k: int = 3) -> str:
     """
     Search the knowledge base for relevant information.
     
@@ -40,12 +41,22 @@ def search_knowledge_base(query: str, top_k: int = 5) -> str:
         retriever = EmbeddingRetriever()
         results = retriever.search(query, top_k=top_k)
         
-        context_parts = []
-        for i, result in enumerate(results, 1):
-            context_parts.append(f"Document {i}:\nSource: {result['metadata'].get('source', 'Unknown')}\nContent: {result['content'][:500]}...")
+        # Format results as compact JSON to reduce token usage
+        formatted_results = []
+        for result in results:
+            # Limit content length to reduce tokens
+            content = result['content']
+            if len(content) > 300:
+                content = content[:300] + "..."
+                
+            formatted_results.append({
+                "source": result['metadata'].get('source', 'Unknown'),
+                "content": content
+            })
         
-        context = "\n\n".join(context_parts)
-        response = f"Found {len(results)} relevant documents:\n\n{context}"
+        # Convert to JSON string
+        import json
+        response = json.dumps(formatted_results, indent=2)
         
         # Log successful search
         if langfuse_config.is_enabled:
@@ -57,7 +68,7 @@ def search_knowledge_base(query: str, top_k: int = 5) -> str:
             except Exception as e:
                 print(f"Langfuse result logging failed: {e}")
         
-        return response
+        return f"<search_results>\n{response}\n</search_results>"
         
     except Exception as e:
         logger.error(f"Error searching knowledge base: {e}")
@@ -96,7 +107,15 @@ def check_knowledge_status() -> str:
     try:
         retriever = EmbeddingRetriever()
         count = retriever.get_document_count()
-        response = f"Knowledge base contains {count} documents and is ready for queries."
+        
+        # Format as compact JSON to reduce token usage
+        import json
+        status_data = {
+            "status": "ready" if count > 0 else "empty",
+            "document_count": count,
+            "last_updated": datetime.now().strftime("%Y-%m-%d")
+        }
+        response = json.dumps(status_data)
         
         # Log successful status check
         if langfuse_config.is_enabled:
@@ -108,7 +127,7 @@ def check_knowledge_status() -> str:
             except Exception as e:
                 print(f"Langfuse result logging failed: {e}")
         
-        return response
+        return f"<status>\n{response}\n</status>"
         
     except Exception as e:
         logger.error(f"Error checking knowledge status: {e}")
@@ -131,29 +150,26 @@ supervisor_agent = Agent(
     model=get_reasoning_model(),
     tools=[search_knowledge_base, check_knowledge_status, file_read, file_write],
     system_prompt="""
-You are SupervisorMaster, an intelligent orchestrating agent for a sophisticated multi-agent RAG system. Your role is to:
+You are a RAG system that answers questions using only retrieved information.
 
-1. **Query Processing**: Analyze user queries and determine the best approach to answer them
-2. **Knowledge Retrieval**: Use the search_knowledge_base tool to find relevant information
-3. **Response Generation**: Synthesize information from multiple sources into comprehensive answers
-4. **File Operations**: Create, read, and write files when needed using the available tools
-5. **Status Monitoring**: Check system status and provide helpful feedback
+WORKFLOW:
+1. ALWAYS start with check_knowledge_status to verify the knowledge base
+2. ALWAYS use search_knowledge_base to find information
+3. NEVER use your own knowledge without searching first
+4. Only provide information from retrieved documents
+5. If no relevant information is found, say so clearly
 
-**Available Tools:**
-- search_knowledge_base: Search for relevant information in the knowledge base
-- check_knowledge_status: Check if the knowledge base is ready and how many documents it contains
-- file_read: Read content from files
-- file_write: Write content to files
+TOOLS:
+- check_knowledge_status: Verify knowledge base status
+- search_knowledge_base: Find relevant information
+- file_read: Read files when needed
+- file_write: Write files when needed
 
-**Instructions:**
-- Always start by checking the knowledge base status if this is the first interaction
-- Use search_knowledge_base to find relevant information for user queries
-- Provide comprehensive, well-structured responses
-- Include source information when available
-- If asked to create files or summaries, use the file_write tool
-- Be helpful, accurate, and thorough in your responses
-
-Focus on delivering high-quality, well-researched responses using the available knowledge and tools.
+FORMAT RESPONSES:
+- Be concise and direct
+- Include sources when available
+- Use bullet points for clarity
+- Focus only on answering the query with retrieved information
 """
 )
 
@@ -171,16 +187,15 @@ def supervisor_agent_with_langfuse(query: str) -> str:
     trace = None
     if langfuse_config.is_enabled:
         try:
-            trace_id = langfuse_config.client.create_trace_id()
-            trace = langfuse_config.client.start_span(
+            # Use the wrapper function instead of direct client access
+            trace = langfuse_config.create_trace(
                 name="supervisor-agent-query",
-                input={"query": query},
+                input_data={"query": query},
                 metadata={
                     "agent_type": "supervisor",
                     "model": str(get_reasoning_model()),
                     "timestamp": datetime.now().isoformat()
-                },
-                trace_id=trace_id
+                }
             )
         except Exception as e:
             print(f"Failed to create Langfuse trace: {e}")

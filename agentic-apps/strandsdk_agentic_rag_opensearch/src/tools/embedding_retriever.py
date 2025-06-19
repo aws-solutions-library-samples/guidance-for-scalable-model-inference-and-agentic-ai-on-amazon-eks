@@ -83,8 +83,15 @@ class EmbeddingRetriever:
             }
             
             # Make request
+            # Check if the endpoint already ends with /embeddings
+            endpoint = self.embedding_endpoint
+            if endpoint.endswith('/embeddings'):
+                request_url = endpoint
+            else:
+                request_url = f"{endpoint}/embeddings"
+                
             response = requests.post(
-                f"{self.embedding_endpoint}/embeddings",
+                request_url,
                 headers=headers,
                 json=data,
                 timeout=30
@@ -181,7 +188,7 @@ class EmbeddingRetriever:
             logger.error(f"Failed to retrieve similar documents: {e}")
             return []
     
-    def search(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
+    def search(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
         """
         Search for similar documents using the query.
         
@@ -201,6 +208,11 @@ class EmbeddingRetriever:
                 query_vector=query_embedding,
                 k=top_k
             )
+            
+            # Truncate content to reduce token usage
+            for result in results:
+                if len(result['content']) > 500:
+                    result['content'] = result['content'][:500]
             
             logger.info(f"Found {len(results)} similar documents for query: {query[:50]}...")
             return results

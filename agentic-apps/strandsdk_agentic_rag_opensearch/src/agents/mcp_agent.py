@@ -4,7 +4,9 @@ import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from strands import Agent, tool
-from strands_tools import file_read, file_write, shell
+import strands_tools.file_read as file_read
+import strands_tools.file_write as file_write_module
+import strands_tools.shell as shell
 from strands.tools.mcp import MCPClient
 from mcp import stdio_client, StdioServerParameters
 from ..config import config
@@ -13,6 +15,44 @@ from ..utils.langfuse_config import langfuse_config
 from ..utils.model_providers import get_reasoning_model
 
 logger = logging.getLogger(__name__)
+
+@tool
+def file_write(content: str, path: str = None, filename: str = None) -> str:
+    """
+    Write content to a file. Either path or filename must be provided.
+    
+    Args:
+        content: Content to write to the file
+        path: Full path to the file (including filename)
+        filename: Name of the file (will be saved in the output directory)
+        
+    Returns:
+        Result of the file write operation
+    """
+    if path is None and filename is None:
+        return "Error: Either path or filename must be provided"
+    
+    if path is None and filename is not None:
+        # Use the output directory from config
+        output_dir = getattr(config, "OUTPUT_DIR", "output")
+        path = f"{output_dir}/{filename}"
+    
+    try:
+        # Create a ToolUse object for file_write
+        tool_use = {
+            "toolUseId": "file_write_" + datetime.now().strftime("%Y%m%d%H%M%S"),
+            "input": {
+                "path": path,
+                "content": content
+            }
+        }
+        
+        # Call the file_write function from the module
+        result = file_write_module.file_write(tool_use)
+        return str(result)
+    except Exception as e:
+        logger.error(f"Error writing to file: {e}")
+        return f"Error writing to file: {str(e)}"
 
 @tool
 def execute_with_mcp_tools(task_description: str, context: str = "") -> str:
@@ -78,7 +118,7 @@ def execute_with_mcp_tools(task_description: str, context: str = "") -> str:
 # Create the MCP agent with available tools
 mcp_agent = Agent(
     model=get_reasoning_model(),
-    tools=[execute_with_mcp_tools, file_read, file_write, shell],
+    tools=[execute_with_mcp_tools, file_write],
     system_prompt="""
 You are ToolMaster, a specialized agent for executing tasks using various tools including MCP (Model Context Protocol) tools. Your capabilities include:
 
@@ -90,13 +130,14 @@ You are ToolMaster, a specialized agent for executing tasks using various tools 
 **Available Tools:**
 - execute_with_mcp_tools: Execute tasks using MCP tool capabilities
 - file_read: Read content from files
-- file_write: Write content to files
+- file_write: Write content to files (requires path or filename)
 - shell: Execute shell commands
 
 **Instructions:**
 - Analyze the user's request and determine the best tools to use
 - Use the provided context to inform your responses
 - Create files, summaries, or other outputs as requested
+- When using file_write, always provide either path or filename parameter
 - Handle errors gracefully and provide helpful feedback
 - Be thorough and accurate in your task execution
 

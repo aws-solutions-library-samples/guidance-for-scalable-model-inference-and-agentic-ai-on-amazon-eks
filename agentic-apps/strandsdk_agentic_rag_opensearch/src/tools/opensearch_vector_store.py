@@ -1,5 +1,4 @@
-"""OpenSearch vector store implementation."""
-
+from datetime import datetime
 import json
 import logging
 from typing import List, Dict, Any, Optional, Tuple
@@ -130,11 +129,13 @@ class OpenSearchVectorStore:
             raise RuntimeError("OpenSearch client not initialized")
         
         try:
+            from datetime import datetime
+            
             doc_body = {
                 "embedding": embedding,
                 "document": document,
                 "metadata": metadata or {},
-                "timestamp": "now"
+                "timestamp": datetime.now().isoformat()
             }
             
             response = self.client.index(
@@ -173,7 +174,7 @@ class OpenSearchVectorStore:
                     "embedding": doc["vector"],
                     "document": doc["content"],
                     "metadata": doc.get("metadata", {}),
-                    "timestamp": doc.get("timestamp", "now")
+                    "timestamp": doc.get("timestamp", datetime.now().isoformat())
                 })
             
             # Execute bulk operation
@@ -239,7 +240,7 @@ class OpenSearchVectorStore:
         k = k or config.TOP_K_RESULTS
         
         try:
-            # Build query
+            # Build query with source filtering to reduce response size
             query = {
                 "size": k,
                 "query": {
@@ -249,7 +250,8 @@ class OpenSearchVectorStore:
                             "k": k
                         }
                     }
-                }
+                },
+                "_source": ["document", "metadata"]  # Only return necessary fields
             }
             
             # Add filters if provided
@@ -269,12 +271,22 @@ class OpenSearchVectorStore:
                 body=query
             )
             
-            # Process results
+            # Process results - keep metadata minimal
             results = []
             for hit in response["hits"]["hits"]:
+                # Extract only essential metadata to reduce token usage
+                metadata = {}
+                if "metadata" in hit["_source"]:
+                    source_metadata = hit["_source"]["metadata"]
+                    # Only keep essential metadata fields
+                    if isinstance(source_metadata, dict):
+                        metadata = {
+                            "source": source_metadata.get("source", "Unknown")
+                        }
+                
                 results.append({
                     "content": hit["_source"]["document"],
-                    "metadata": hit["_source"].get("metadata", {}),
+                    "metadata": metadata,
                     "score": hit["_score"],
                     "id": hit["_id"]
                 })

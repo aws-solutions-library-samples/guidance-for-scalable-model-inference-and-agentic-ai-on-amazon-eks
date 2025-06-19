@@ -100,29 +100,92 @@ def embed_knowledge_files() -> str:
         
         embedded_count = 0
         total_files = 0
+        total_rows = 0  # For CSV files
         processed_files = []
         
         for file_path in knowledge_dir.rglob("*"):
             if file_path.is_file() and file_path.suffix in [".md", ".txt", ".json", ".csv"]:
                 total_files += 1
                 try:
-                    # Read file content
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                    
-                    # Add to retriever
-                    success = retriever.add_document(
-                        content=content,
-                        metadata={
-                            "source": str(file_path.relative_to(knowledge_dir)),
-                            "type": file_path.suffix[1:],
-                            "size": len(content)
-                        }
-                    )
-                    
-                    if success:
-                        embedded_count += 1
-                        processed_files.append(str(file_path.relative_to(knowledge_dir)))
+                    # Special handling for CSV files
+                    if file_path.suffix.lower() == ".csv":
+                        logger.info(f"Processing CSV file: {file_path}")
+                        try:
+                            # Read the CSV file
+                            df = pd.read_csv(file_path)
+                            logger.info(f"CSV file has {len(df)} rows and {len(df.columns)} columns")
+                            
+                            # Process each row
+                            csv_success_count = 0
+                            for index, row in df.iterrows():
+                                try:
+                                    # Check if the CSV has question and context columns
+                                    if 'question' in df.columns and 'context' in df.columns:
+                                        question = row.get('question', '')
+                                        context = row.get('context', '')
+                                        
+                                        if not question or not context:
+                                            logger.warning(f"Row {index} is missing question or context, skipping")
+                                            continue
+                                        
+                                        # Create document content
+                                        document = f"Question: {question}\nContext: {context}"
+                                    else:
+                                        # If not a Q&A format, just concatenate all columns
+                                        document = "\n".join([f"{col}: {row[col]}" for col in df.columns])
+                                    
+                                    # Add metadata
+                                    metadata = {
+                                        'source': str(file_path.relative_to(knowledge_dir)),
+                                        'row_index': int(index),
+                                        'type': 'csv_row',
+                                    }
+                                    
+                                    # Add question as identifier if available
+                                    if 'question' in df.columns:
+                                        metadata['question'] = row['question'][:100]  # First 100 chars
+                                    
+                                    # Add to retriever
+                                    row_success = retriever.add_document(
+                                        content=document,
+                                        metadata=metadata
+                                    )
+                                    
+                                    if row_success:
+                                        csv_success_count += 1
+                                    
+                                    total_rows += 1
+                                    
+                                except Exception as e:
+                                    logger.error(f"Error processing CSV row {index}: {e}")
+                            
+                            logger.info(f"Successfully embedded {csv_success_count} out of {len(df)} rows from {file_path}")
+                            
+                            if csv_success_count > 0:
+                                embedded_count += 1
+                                processed_files.append(str(file_path.relative_to(knowledge_dir)))
+                                
+                        except Exception as e:
+                            logger.error(f"Error processing CSV file {file_path}: {e}")
+                    else:
+                        # Standard processing for non-CSV files
+                        # Read file content
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                        
+                        # Add to retriever
+                        success = retriever.add_document(
+                            content=content,
+                            metadata={
+                                "source": str(file_path.relative_to(knowledge_dir)),
+                                "type": file_path.suffix[1:],
+                                "size": len(content)
+                            }
+                        )
+                        
+                        if success:
+                            embedded_count += 1
+                            processed_files.append(str(file_path.relative_to(knowledge_dir)))
                     
                 except Exception as e:
                     logger.error(f"Error processing file {file_path}: {e}")
@@ -131,7 +194,9 @@ def embed_knowledge_files() -> str:
             "success": True,
             "embedded_count": embedded_count,
             "total_files": total_files,
-            "message": f"Successfully embedded {embedded_count} out of {total_files} files"
+            "total_csv_rows": total_rows,
+            "message": f"Successfully embedded {embedded_count} out of {total_files} files" + 
+                      (f" ({total_rows} CSV rows)" if total_rows > 0 else "")
         })
         
         # Update Langfuse span with results

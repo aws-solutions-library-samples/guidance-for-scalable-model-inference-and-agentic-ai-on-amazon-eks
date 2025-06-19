@@ -1,0 +1,10 @@
+#!/bin/sh
+'''exec' /home/ubuntu/Cost_Effective_and_Scalable_Models_Inference_on_AWS_Graviton/agentic-apps/strandsdk_agentic_rag_opensearch/venv/bin/python3 "$0" "$@"
+' '''
+# -*- coding: utf-8 -*-
+import re
+import sys
+from tqdm.cli import main
+if __name__ == '__main__':
+    sys.argv[0] = re.sub(r'(-script\.pyw|\.exe)?$', '', sys.argv[0])
+    sys.exit(main())

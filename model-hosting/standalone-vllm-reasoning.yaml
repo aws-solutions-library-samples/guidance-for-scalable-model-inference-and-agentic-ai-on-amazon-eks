@@ -56,7 +56,7 @@ spec:
         # image: vllm/vllm-openai:v0.7.3
         command: ["/bin/sh", "-c"]
         args: [
-          "vllm serve Qwen/Qwen3-32B  --enable-auto-tool-choice --tool-call-parser hermes  --trust-remote-code --max-num-batched-tokens 8192  --max-num-seqs 8 --max-model-len 8192 --dtype bfloat16 --tensor-parallel-size 4 --gpu-memory-utilization 0.90"
+          "vllm serve Qwen/Qwen3-14B  --enable-auto-tool-choice --tool-call-parser hermes  --trust-remote-code --max-num-batched-tokens 8192  --max-num-seqs 8 --max-model-len 8192 --dtype bfloat16 --tensor-parallel-size 4 --gpu-memory-utilization 0.90"
           
         ]
         # kishizaki-sci/Llama-4-Scout-17B-16E-Instruct-AWQ

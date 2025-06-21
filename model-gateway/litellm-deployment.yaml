@@ -96,7 +96,7 @@ data:
     model_list:
     - model_name: vllm-server-qwen3
       litellm_params:
-        model: hosted_vllm/Qwen/Qwen3-32B
+        model: hosted_vllm/Qwen/Qwen3-14B
         api_base: http://vllm-qwen-server:8000/v1
     - model_name: llamacpp-embedding
       litellm_params:

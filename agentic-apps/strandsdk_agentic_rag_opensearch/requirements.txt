@@ -17,6 +17,12 @@ uvicorn>=0.24.0
 boto3>=1.34.0
 opensearch-py>=2.4.0
 aws-requests-auth>=0.4.3
+langchain-aws>=0.1.0
+
+# RAGAs evaluation dependencies
+ragas>=0.1.0
+langchain>=0.1.0
+langchain-core>=0.1.0
 
 # Vector embeddings and ML
 numpy>=1.24.0

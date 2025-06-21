@@ -1,5 +1,10 @@
-"""Supervisor Agent using Strands SDK patterns with Tavily Web Search integration."""
+"""Supervisor Agent using Strands SDK patterns with Tavily Web Search integration and RAG relevance evaluation."""
 
+# Import global async cleanup FIRST
+from ..utils.global_async_cleanup import setup_global_async_cleanup
+
+import asyncio
+import re
 import logging
 import json
 from typing import Dict, List, Any, Optional
@@ -8,17 +13,33 @@ from strands import Agent, tool
 from strands_tools import file_read
 from mcp.client.streamable_http import streamablehttp_client
 from strands.tools.mcp.mcp_client import MCPClient
+from langchain_aws import ChatBedrockConverse
+from ragas import SingleTurnSample
+from ragas.metrics import LLMContextPrecisionWithoutReference
+from ragas.llms import LangchainLLMWrapper
 from ..config import config
 from ..utils.logging import log_title
 from ..utils.model_providers import get_reasoning_model
 from ..utils.strands_langfuse_integration import create_traced_agent, setup_tracing_environment
+from ..utils.async_cleanup import suppress_async_warnings, setup_async_environment
 from ..tools.embedding_retriever import EmbeddingRetriever
 from .mcp_agent import file_write  # Use the wrapped file_write from mcp_agent
 
 logger = logging.getLogger(__name__)
 
-# Set up tracing environment
+# Set up tracing environment and async cleanup
 setup_tracing_environment()
+setup_async_environment()
+
+# Evaluation model configuration for RAGAs
+eval_modelId = 'us.anthropic.claude-3-7-sonnet-20250219-v1:0'
+thinking_params = {
+    "thinking": {
+        "type": "disabled"
+    }
+}
+llm_for_evaluation = ChatBedrockConverse(model_id=eval_modelId, additional_model_request_fields=thinking_params)
+llm_for_evaluation = LangchainLLMWrapper(llm_for_evaluation)
 
 # Initialize Tavily MCP client
 tavily_mcp_client = None
@@ -103,6 +124,173 @@ def calculate_relevance_score(results: List[Dict], query: str) -> float:
     return min(avg_score, 1.0)
 
 # Create tools for the supervisor agent
+def _run_async_evaluation_safe(scorer, sample):
+    """
+    Helper function to run async evaluation with proper cleanup and error handling.
+    
+    Args:
+        scorer: RAGAs scorer instance
+        sample: SingleTurnSample for evaluation
+        
+    Returns:
+        float: Evaluation score
+    """
+    import asyncio
+    import threading
+    import queue
+    
+    def run_evaluation():
+        """Run the evaluation in a clean async environment."""
+        async def evaluate():
+            try:
+                # Set a shorter timeout for the evaluation
+                score = await asyncio.wait_for(
+                    scorer.single_turn_ascore(sample), 
+                    timeout=20.0  # 20 second timeout
+                )
+                return score
+            except asyncio.TimeoutError:
+                raise TimeoutError("RAGAs evaluation timed out")
+            except Exception as e:
+                raise Exception(f"RAGAs evaluation failed: {str(e)}")
+        
+        # Create and run in a new event loop with proper cleanup
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            score = loop.run_until_complete(evaluate())
+            result_queue.put(('success', score))
+        except Exception as e:
+            result_queue.put(('error', str(e)))
+        finally:
+            # Properly close the loop and clean up
+            try:
+                # Cancel all remaining tasks
+                pending = asyncio.all_tasks(loop)
+                for task in pending:
+                    task.cancel()
+                
+                # Wait for tasks to complete cancellation with timeout
+                if pending:
+                    try:
+                        loop.run_until_complete(
+                            asyncio.wait_for(
+                                asyncio.gather(*pending, return_exceptions=True),
+                                timeout=2.0
+                            )
+                        )
+                    except asyncio.TimeoutError:
+                        pass  # Ignore timeout during cleanup
+                
+                # Close the loop
+                loop.close()
+            except Exception:
+                pass  # Ignore cleanup errors
+    
+    # Use a queue to communicate between threads
+    result_queue = queue.Queue()
+    
+    # Run in a separate thread to avoid event loop conflicts
+    thread = threading.Thread(target=run_evaluation, daemon=True)
+    thread.start()
+    thread.join(timeout=25)  # Give extra time for cleanup
+    
+    if thread.is_alive():
+        raise TimeoutError("Evaluation thread timed out")
+    
+    try:
+        result_type, result_value = result_queue.get_nowait()
+        if result_type == 'error':
+            raise Exception(result_value)
+        return result_value
+    except queue.Empty:
+        raise Exception("No result received from evaluation")
+
+@tool
+def check_chunks_relevance(results: str, question: str):
+    """
+    Evaluates the relevance of retrieved chunks to the user question using RAGAs.
+
+    Args:
+        results (str): Retrieval output as a string with 'Score:' and 'Content:' patterns.
+        question (str): Original user question.
+
+    Returns:
+        dict: A binary score ('yes' or 'no') and the numeric relevance score, or an error message.
+    """
+    # Use the async warning suppression context
+    with suppress_async_warnings():
+        try:
+            if not results or not isinstance(results, str):
+                raise ValueError("Invalid input: 'results' must be a non-empty string.")
+            if not question or not isinstance(question, str):
+                raise ValueError("Invalid input: 'question' must be a non-empty string.")
+
+            # Extract content chunks using regex
+            pattern = r"Score:.*?\nContent:\s*(.*?)(?=Score:|\Z)"
+            docs = [chunk.strip() for chunk in re.findall(pattern, results, re.DOTALL)]
+
+            if not docs:
+                raise ValueError("No valid content chunks found in 'results'.")
+
+            # Limit the number of chunks to avoid timeout
+            if len(docs) > 3:
+                docs = docs[:3]  # Take only first 3 chunks
+                logger.info(f"Limited evaluation to first 3 chunks out of {len(docs)} total")
+
+            # Prepare evaluation sample
+            sample = SingleTurnSample(
+                user_input=question,
+                response="placeholder-response",  # required dummy response
+                retrieved_contexts=docs
+            )
+
+            # Evaluate using context precision metric with safe async handling
+            scorer = LLMContextPrecisionWithoutReference(llm=llm_for_evaluation)
+            
+            print("------------------------")
+            print("Context evaluation (RAGAs)")
+            print("------------------------")
+            print(f"Evaluating {len(docs)} chunks...")
+            
+            # Use the safe evaluation helper
+            score = _run_async_evaluation_safe(scorer, sample)
+
+            print(f"chunk_relevance_score: {score}")
+            print("------------------------")
+
+            return {
+                "chunk_relevance_score": "yes" if score > 0.5 else "no",
+                "chunk_relevance_value": score
+            }
+
+        except Exception as e:
+            logger.error(f"Error in chunk relevance evaluation: {e}")
+            # Provide a fallback based on simple heuristics
+            try:
+                # Simple fallback: check if question keywords appear in results
+                question_words = set(question.lower().split())
+                results_words = set(results.lower().split())
+                overlap = len(question_words.intersection(results_words))
+                fallback_score = min(overlap / len(question_words), 1.0) if question_words else 0.0
+                
+                logger.info(f"Using fallback relevance score: {fallback_score}")
+                
+                return {
+                    "chunk_relevance_score": "yes" if fallback_score > 0.3 else "no",
+                    "chunk_relevance_value": fallback_score,
+                    "evaluation_method": "fallback_heuristic",
+                    "note": f"RAGAs evaluation failed, using keyword overlap heuristic"
+                }
+            except Exception as fallback_error:
+                logger.error(f"Fallback evaluation also failed: {fallback_error}")
+                return {
+                    "error": f"Both RAGAs and fallback evaluation failed: {str(e)}",
+                    "chunk_relevance_score": "unknown",
+                    "chunk_relevance_value": None
+                }
+
 @tool
 def search_knowledge_base(query: str, top_k: int = 3) -> str:  
     """
@@ -134,7 +322,13 @@ def search_knowledge_base(query: str, top_k: int = 3) -> str:
                 seen_content.add(content_hash)
                 unique_results.append(result)
         
-        # Format results as compact JSON 
+        # Format results for RAGAs evaluation (with Score: and Content: patterns)
+        formatted_for_evaluation = ""
+        for result in unique_results[:top_k]:
+            formatted_for_evaluation += f"Score: {result.get('score', result.get('_score', 0.0))}\n"
+            formatted_for_evaluation += f"Content: {result['content']}\n\n"
+        
+        # Format results as compact JSON for response
         formatted_results = []
         for result in unique_results[:top_k]:  # Ensure we don't exceed top_k after deduplication
             # Limit content length to reduce tokens
@@ -155,7 +349,8 @@ def search_knowledge_base(query: str, top_k: int = 3) -> str:
             "total_results": len(unique_results),
             "duplicates_removed": len(results) - len(unique_results),
             "query": query,
-            "validation_note": "Relevance score includes content validation to prevent false positives"
+            "validation_note": "Relevance score includes content validation to prevent false positives",
+            "formatted_for_evaluation": formatted_for_evaluation  # Add this for RAGAs evaluation
         }
         
         # Convert to JSON string
@@ -228,6 +423,7 @@ def create_supervisor_agent_with_mcp():
             
             # Combine local tools with MCP tools
             all_tools = [
+                check_chunks_relevance,
                 search_knowledge_base, 
                 check_knowledge_status, 
                 file_read, 
@@ -283,32 +479,49 @@ IMPORTANT:
             Agent,
             model=get_reasoning_model(),
             tools=[
+                check_chunks_relevance,
                 search_knowledge_base, 
                 check_knowledge_status, 
                 file_read, 
                 file_write
             ],
             system_prompt="""
-You are a RAG system. Answer questions using retrieved information from the knowledge base.
+You are a RAG system with advanced relevance evaluation. Answer questions using retrieved information from the knowledge base.
 
-WORKFLOW:
+ENHANCED WORKFLOW WITH RAG EVALUATION:
 1. ALWAYS start with check_knowledge_status() - verify knowledge base first
-2. search_knowledge_base(query="terms") - search internal data
-3. Use the retrieved information to answer questions
-4. When writing files, ALWAYS use the output directory - call file_write with filename parameter only
-5. Cite sources clearly
+2. search_knowledge_base(query="terms") - search internal data (returns JSON with formatted_for_evaluation field)
+3. EVALUATE RELEVANCE: Use check_chunks_relevance(results=formatted_for_evaluation, question=original_query)
+   - This returns {"chunk_relevance_score": "yes"/"no", "chunk_relevance_value": float}
+4. DECISION POINT:
+   - If chunk_relevance_score is "yes" (score > 0.5): Use RAG results to answer
+   - If chunk_relevance_score is "no" (score <= 0.5): Inform user that results may not be relevant
+5. When writing files, ALWAYS use the output directory - call file_write with filename parameter only
+6. Cite sources clearly and mention evaluation results
 
 TOOLS AVAILABLE:
 - check_knowledge_status(): Check KB status - ALWAYS CALL THIS FIRST
-- search_knowledge_base(query): Search KB (returns relevance_score)
+- search_knowledge_base(query): Search KB (returns JSON with formatted_for_evaluation field)
+- check_chunks_relevance(results, question): Evaluate relevance using RAGAs (use formatted_for_evaluation field)
 - file_read(path): Read files
 - file_write(content, filename): Write files to output directory (use filename parameter, not path)
 
+ENHANCED DECISION LOGIC:
+1. FIRST: Always call check_knowledge_status()
+2. SECOND: search_knowledge_base(query) to get results with formatted_for_evaluation
+3. THIRD: check_chunks_relevance(results=formatted_for_evaluation, question=original_query)
+4. DECISION:
+   - If chunk_relevance_score is "yes": Use RAG results confidently
+   - If chunk_relevance_score is "no": Mention low relevance and provide best available information
+5. FINAL: When saving files, use file_write(content, filename) - files go to output directory automatically
+
 IMPORTANT: 
 - ALWAYS start with check_knowledge_status()
+- ALWAYS evaluate chunk relevance before providing answers
 - ALWAYS use filename parameter (not path) for file_write to save to output directory
+- Be transparent about relevance evaluation results
 
-FORMAT: Be concise, cite sources, use bullets when helpful
+FORMAT: Be concise, cite sources, use bullets when helpful, mention evaluation results
 """,
             session_id="supervisor-session",
             user_id="system"
@@ -333,6 +546,7 @@ class SupervisorAgentWrapper:
                 
                 # Combine local tools with MCP tools
                 all_tools = [
+                    check_chunks_relevance,
                     search_knowledge_base, 
                     check_knowledge_status, 
                     file_read, 
@@ -381,6 +595,7 @@ FORMAT: Be concise, cite sources, use bullets when helpful
                 Agent,
                 model=get_reasoning_model(),
                 tools=[
+                    check_chunks_relevance,
                     search_knowledge_base, 
                     check_knowledge_status, 
                     file_read, 
@@ -453,6 +668,7 @@ def create_fresh_supervisor_agent():
                     
                     # Combine local tools with MCP tools
                     all_tools = [
+                        check_chunks_relevance,
                         search_knowledge_base, 
                         check_knowledge_status, 
                         file_read, 
@@ -465,38 +681,47 @@ def create_fresh_supervisor_agent():
                         model=get_reasoning_model(),
                         tools=all_tools,
                         system_prompt="""
-You are a RAG system with web search capabilities. Answer questions using retrieved info and real-time web data.
+You are a RAG system with web search capabilities and advanced relevance evaluation. Answer questions using retrieved info and real-time web data.
 
-WORKFLOW:
+ENHANCED WORKFLOW WITH RAG EVALUATION:
 1. ALWAYS start with check_knowledge_status() - verify knowledge base first
-2. search_knowledge_base(query="terms") - search internal data (returns JSON with relevance_score)
-3. Check the relevance_score: if < 0.3 OR for time-sensitive queries (weather, news, "today", "current"): use web_search
-4. If relevance_score >= 0.3 and not time-sensitive: use RAG results
+2. search_knowledge_base(query="terms") - search internal data (returns JSON with formatted_for_evaluation field)
+3. EVALUATE RELEVANCE: Use check_chunks_relevance(results=formatted_for_evaluation, question=original_query)
+   - This returns {"chunk_relevance_score": "yes"/"no", "chunk_relevance_value": float}
+4. DECISION POINT:
+   - If chunk_relevance_score is "yes" (score > 0.5): Use RAG results to answer
+   - If chunk_relevance_score is "no" (score <= 0.5): Use web_search for better results
+   - For time-sensitive queries (weather, news, "today", "current"): Always use web_search
 5. When writing files, ALWAYS use the output directory - call file_write with filename parameter only
-6. Cite sources clearly
+6. Cite sources clearly and mention which evaluation method was used
 
 TOOLS AVAILABLE:
 - check_knowledge_status(): Check KB status - ALWAYS CALL THIS FIRST
-- search_knowledge_base(query): Search KB (returns JSON with relevance_score)
+- search_knowledge_base(query): Search KB (returns JSON with formatted_for_evaluation field)
+- check_chunks_relevance(results, question): Evaluate relevance using RAGAs (use formatted_for_evaluation field)
 - web_search(query, max_results, search_depth, include_answer): MCP tool for web search
 - news_search(query, max_results, days_back): MCP tool for news search
 - health_check(): MCP tool to check Tavily service status
 - file_read(path): Read files
 - file_write(content, filename): Write files to output directory (use filename parameter, not path)
 
-DECISION LOGIC:
+ENHANCED DECISION LOGIC:
 1. FIRST: Always call check_knowledge_status()
-2. For weather/news/current events: use web_search directly
-3. For other queries: search knowledge base first, check relevance_score
-4. If relevance_score < 0.3: use web_search for better results
-5. If relevance_score >= 0.3: use RAG results
-6. FINAL: When saving files, use file_write(content, filename) - files go to output directory automatically
+2. SECOND: search_knowledge_base(query) to get results with formatted_for_evaluation
+3. THIRD: check_chunks_relevance(results=formatted_for_evaluation, question=original_query)
+4. DECISION:
+   - If chunk_relevance_score is "yes": Use RAG results
+   - If chunk_relevance_score is "no": Use web_search
+   - For weather/news/current events: Skip evaluation, use web_search directly
+5. FINAL: When saving files, use file_write(content, filename) - files go to output directory automatically
 
-FORMAT: Be concise, cite sources, use bullets when helpful
+FORMAT: Be concise, cite sources, use bullets when helpful, mention evaluation results
 
 IMPORTANT: 
 - ALWAYS start with check_knowledge_status()
+- ALWAYS evaluate chunk relevance before deciding between RAG and web search
 - ALWAYS use filename parameter (not path) for file_write to save to output directory
+- Be transparent about which source provided the information and the relevance evaluation results
 """,
                         session_id=self.session_id,
                         user_id="system"
@@ -508,6 +733,7 @@ IMPORTANT:
                     Agent,
                     model=get_reasoning_model(),
                     tools=[
+                        check_chunks_relevance,
                         search_knowledge_base, 
                         check_knowledge_status, 
                         file_read, 

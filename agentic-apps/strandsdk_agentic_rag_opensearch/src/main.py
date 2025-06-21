@@ -10,6 +10,9 @@ A sophisticated multi-agent system that combines:
 - Langfuse observability integration
 """
 
+# Import global async cleanup FIRST to suppress warnings
+from .utils.global_async_cleanup import setup_global_async_cleanup
+
 import sys
 import logging
 from typing import Optional

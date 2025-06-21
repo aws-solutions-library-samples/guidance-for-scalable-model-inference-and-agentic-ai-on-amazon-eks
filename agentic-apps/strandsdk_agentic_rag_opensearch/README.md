@@ -130,12 +130,21 @@ python -c "from src.agents.knowledge_agent import knowledge_agent; print(knowled
 ### 3. Run the Multi-Agent System
 
 ```bash
-# Start the interactive system (with built-in tracing)
+# Standard mode (with built-in tracing)
 source venv/bin/activate
 python -m src.main
 
-# Or run a single query
+# Clean mode (async warnings suppressed)
+python run_main_clean.py
+
+# Single query - standard mode
 python -c "from src.main import run_single_query; print(run_single_query('What is Bell\'s palsy?'))"
+
+# Single query - clean mode
+python run_single_query_clean.py "What is Bell's palsy?"
+
+# Single query - ultra clean mode (completely suppressed stderr)
+python run_completely_clean.py "What is Bell's palsy?"
 ```
 
 ### 4. Test the System
@@ -144,9 +153,17 @@ python -c "from src.main import run_single_query; print(run_single_query('What i
 # Run comprehensive tests including web search integration
 python -m src.test_agents
 
+# Test the enhanced RAG system with chunk relevance evaluation
+python test_enhanced_rag.py
+
 # Test web search integration specifically
 python src/test_web_search_integration.py
+
+# Run tests with clean output (async warnings filtered)
+python run_clean_test.py
 ```
+
+**Note**: The enhanced system uses RAGAs for chunk relevance evaluation, which may generate harmless async cleanup warnings. Use `run_clean_test.py` for a cleaner testing experience.
 
 ## 🔍 Observability & Tracing
 
@@ -290,6 +307,8 @@ result = supervisor_agent(query)
 - **Multiple Export Options**: Console, OTLP, Jaeger, Langfuse support out of the box
 - **Environment-based Configuration**: Easy setup through environment variables
 - **Clean Code Structure**: Removed duplicate wrapper functions and complex manual tracing
+- **Async Warning Management**: Clean test runner filters harmless async cleanup warnings
+- **Robust Error Handling**: Fallback mechanisms ensure system reliability
 
 ## 🤝 Contributing
 

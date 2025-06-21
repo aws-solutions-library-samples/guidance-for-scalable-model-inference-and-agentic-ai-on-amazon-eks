@@ -26,9 +26,18 @@ SupervisorAgent (Orchestrator) [with built-in tracing]
 - **Embedding Generation**: Configurable embedding models and endpoints
 - **Multi-format Support**: Handles markdown, text, JSON, and CSV files
 - **Intelligent Search**: Vector similarity search with metadata and scoring
+- **Relevance Scoring**: Automatic relevance assessment for search results
+
+### External Web Search Integration 🌐
+- **Tavily API Integration**: Real-time web search via MCP server
+- **Automatic Triggering**: Web search activated when RAG relevance < 0.3
+- **News Search**: Dedicated recent news and current events search
+- **Hybrid Responses**: Combines knowledge base and web search results
+- **Smart Fallback**: Graceful degradation when web search unavailable
 
 ### MCP Tool Integration
 - **Filesystem Operations**: Read, write, and manage files using Strands tools
+- **Web Search Tools**: Tavily-powered web and news search capabilities
 - **Extensible Architecture**: Easy to add new MCP servers
 - **Error Handling**: Robust tool execution with fallbacks
 - **Built-in Tools**: Integration with Strands built-in tools
@@ -79,6 +88,9 @@ DEFAULT_MODEL=us.anthropic.claude-3-7-sonnet-20250219-v1:0
 AWS_REGION=us-east-1
 OPENSEARCH_ENDPOINT=https://your-opensearch-domain.region.es.amazonaws.com
 
+# Tavily Web Search Configuration
+TAVILY_API_KEY=your-tavily-api-key
+
 # Tracing Configuration (Optional)
 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
 OTEL_EXPORTER_OTLP_HEADERS=key1=value1,key2=value2
@@ -98,14 +110,24 @@ TOP_K_RESULTS=5
 
 ## 🏃‍♂️ Usage
 
-### 1. Embed Knowledge Documents
+### 1. Start Tavily MCP Server (for Web Search)
+
+```bash
+# Start the Tavily web search server
+python scripts/start_tavily_server.py
+
+# Or run directly
+python src/mcp_servers/tavily_search_server.py
+```
+
+### 2. Embed Knowledge Documents
 
 ```bash
 # Process and embed all knowledge documents
 python -c "from src.agents.knowledge_agent import knowledge_agent; print(knowledge_agent('Please embed all knowledge files'))"
 ```
 
-### 2. Run the Multi-Agent System
+### 3. Run the Multi-Agent System
 
 ```bash
 # Start the interactive system (with built-in tracing)
@@ -116,11 +138,14 @@ python -m src.main
 python -c "from src.main import run_single_query; print(run_single_query('What is Bell\'s palsy?'))"
 ```
 
-### 3. Test the System
+### 4. Test the System
 
 ```bash
-# Run comprehensive tests
+# Run comprehensive tests including web search integration
 python -m src.test_agents
+
+# Test web search integration specifically
+python src/test_web_search_integration.py
 ```
 
 ## 🔍 Observability & Tracing

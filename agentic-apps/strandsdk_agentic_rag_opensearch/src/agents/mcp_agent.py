@@ -22,7 +22,8 @@ setup_tracing_environment()
 @tool
 def file_write(content: str, path: str = None, filename: str = None) -> str:
     """
-    Write content to a file. Either path or filename must be provided.
+    Write content to a file without confirmation prompt. Either path or filename must be provided.
+    When filename is provided, file is automatically saved to the output directory.
     
     Args:
         content: Content to write to the file
@@ -32,6 +33,9 @@ def file_write(content: str, path: str = None, filename: str = None) -> str:
     Returns:
         Result of the file write operation
     """
+    import os
+    from pathlib import Path
+    
     if path is None and filename is None:
         return "Error: Either path or filename must be provided"
     
@@ -41,21 +45,24 @@ def file_write(content: str, path: str = None, filename: str = None) -> str:
         path = f"{output_dir}/{filename}"
     
     try:
-        # Create a ToolUse object for file_write
-        tool_use = {
-            "toolUseId": "file_write_" + datetime.now().strftime("%Y%m%d%H%M%S"),
-            "input": {
-                "path": path,
-                "content": content
-            }
-        }
+        # Ensure the directory exists
+        file_path = Path(path)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
         
-        # Call the file_write function from the module
-        result = file_write_module.file_write(tool_use)
-        return str(result)
+        # Write the content directly to the file
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        # Get file size for confirmation
+        file_size = file_path.stat().st_size
+        
+        logger.info(f"File written successfully: {path} ({file_size} bytes)")
+        
+        return f"✅ File written successfully to {path} ({file_size} bytes)"
+        
     except Exception as e:
         logger.error(f"Error writing to file: {e}")
-        return f"Error writing to file: {str(e)}"
+        return f"❌ Error writing to file: {str(e)}"
 
 @tool
 def execute_with_mcp_tools(task_description: str, context: str = "") -> str:

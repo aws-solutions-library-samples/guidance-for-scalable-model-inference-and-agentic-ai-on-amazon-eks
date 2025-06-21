@@ -50,6 +50,8 @@ def main():
 
 def run_interactive_mode():
     """Run the application in interactive mode."""
+    logger = logging.getLogger(__name__)  # Add logger definition
+    
     log_title("INTERACTIVE MODE")
     print("🤖 Multi-Agent RAG System Ready!")
     print("Ask questions and I'll use my specialized agents to help you.")
@@ -78,10 +80,34 @@ def run_interactive_mode():
                     print("⚠️ Query is too long, truncating to 500 characters...")
                     user_input = user_input[:500]
                 
-                # Use the supervisor agent (now with built-in tracing)
-                response = supervisor_agent(user_input)
-                print(f"\n🤖 Response:\n{response}")
+                # Add debug logging
+                logger.info(f"Starting agent processing for query: {user_input[:50]}...")
                 
+                # Use the supervisor agent (now with built-in tracing)
+                # Ensure we wait for complete response
+                response = supervisor_agent(user_input)
+                
+                logger.info("Agent processing completed")
+                
+                # Ensure response is fully processed before displaying
+                if response is None:
+                    response = "No response received from agent."
+                
+                response_str = str(response).strip()
+                if not response_str:
+                    response_str = "Agent completed processing but returned empty response."
+                
+                print(f"\n🤖 Response:\n{response_str}")
+                
+                # Add a small delay to ensure all background processes complete
+                import time
+                time.sleep(0.5)
+                
+                logger.info("Response display completed, ready for next input")
+                
+            except KeyboardInterrupt:
+                print("\n⚠️ Processing interrupted by user.")
+                break
             except Exception as e:
                 print(f"\n❌ Error: {e}")
                 logger.error(f"Error processing query: {e}")
@@ -91,9 +117,13 @@ def run_interactive_mode():
         except KeyboardInterrupt:
             print("\n\nExiting...")
             break
+        except EOFError:
+            print("\n\nInput stream closed. Exiting...")
+            break
         except Exception as e:
             print(f"\n❌ An error occurred: {e}")
             print("Please try again with a different question.\n")
+            logger.error(f"Unexpected error in interactive mode: {e}")
 
 def run_single_query(query: str) -> Optional[str]:
     """Run a single query and return the result."""

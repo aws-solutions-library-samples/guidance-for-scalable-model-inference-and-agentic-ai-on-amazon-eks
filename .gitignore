@@ -52,3 +52,7 @@ Thumbs.db
 # Project specific files
 agentic-apps/agentic_rag_opensearch/pnpm-lock.yaml
 agentic-apps/agentic_rag_opensearch/.knowledge-metadata.json
+
+# Agentic apps output and cache directories
+agentic-apps/strandsdk_agentic_rag_opensearch/output/
+agentic-apps/strandsdk_agentic_rag_opensearch/src/__pycache__/

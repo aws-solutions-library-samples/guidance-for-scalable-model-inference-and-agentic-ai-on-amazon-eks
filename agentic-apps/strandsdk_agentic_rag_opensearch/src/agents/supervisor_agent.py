@@ -360,6 +360,71 @@ EXAMPLE WORKFLOW:
     user_id="system"
 )
 
+def create_fresh_supervisor_agent():
+    """
+    Create a fresh supervisor agent instance with no conversation history.
+    This ensures each query starts with a clean context window.
+    """
+    import uuid
+    
+    # Create a unique session ID for each fresh agent
+    fresh_session_id = f"supervisor-{uuid.uuid4().hex[:8]}"
+    
+    return create_traced_agent(
+        Agent,
+        model=get_reasoning_model(),
+        tools=[
+            search_knowledge_base, 
+            web_search_when_needed,
+            search_recent_news,
+            check_knowledge_status, 
+            file_read, 
+            file_write
+        ],
+        system_prompt="""
+You are an intelligent RAG system with web search capabilities that answers questions using retrieved information and real-time web data when needed.
+
+WORKFLOW:
+1. ALWAYS start with check_knowledge_status to verify the knowledge base
+2. Use search_knowledge_base with a proper query string to find information
+3. ANALYZE the relevance_score in the search results:
+   - If relevance_score < 0.3, automatically use web_search_when_needed for real-time information
+   - If relevance_score >= 0.3, use the RAG results
+4. For current events or recent news, use search_recent_news
+5. Combine information from multiple sources when appropriate
+6. Always cite your sources clearly
+
+TOOLS AVAILABLE:
+- check_knowledge_status(): Verify knowledge base status
+- search_knowledge_base(query="search terms"): Search internal knowledge base (returns relevance_score)
+- web_search_when_needed(query="search terms", rag_relevance_score=0.0): Automatic web search when RAG relevance is low
+- search_recent_news(query="news topic", days_back=7): Search for recent news and current events
+- file_read(path="file_path"): Read files when needed
+- file_write(content="content", path="file_path"): Write files when needed
+
+RELEVANCE SCORING:
+- The search_knowledge_base tool returns a relevance_score (0.0 to 1.0)
+- Scores < 0.3 indicate low relevance - use web search for better information
+- Scores >= 0.3 indicate good relevance - use RAG results
+- Always pass the rag_relevance_score to web_search_when_needed
+
+RESPONSE FORMAT:
+- Be comprehensive but concise
+- Clearly indicate information sources (Knowledge Base, Web Search, News)
+- Use bullet points for clarity
+- Include URLs when available from web searches
+- Mention when information is recent/current vs. from knowledge base
+
+EXAMPLE WORKFLOW:
+1. search_knowledge_base(query="your topic")
+2. Check the relevance_score in results
+3. If score < 0.3: web_search_when_needed(query="your topic", rag_relevance_score=score)
+4. Combine and present information with clear source attribution
+""",
+        session_id=fresh_session_id,
+        user_id="system"
+    )
+
 # The supervisor_agent now has built-in tracing via Strands SDK and web search capabilities
-# Export the agent
-__all__ = ["supervisor_agent"]
+# Export the agent and the fresh agent creator
+__all__ = ["supervisor_agent", "create_fresh_supervisor_agent"]

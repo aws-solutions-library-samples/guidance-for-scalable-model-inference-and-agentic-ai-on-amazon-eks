@@ -83,9 +83,12 @@ def run_interactive_mode():
                 # Add debug logging
                 logger.info(f"Starting agent processing for query: {user_input[:50]}...")
                 
-                # Use the supervisor agent (now with built-in tracing)
-                # Ensure we wait for complete response
-                response = supervisor_agent(user_input)
+                # Create a fresh agent instance for each query to avoid context accumulation
+                from .agents.supervisor_agent import create_fresh_supervisor_agent
+                fresh_agent = create_fresh_supervisor_agent()
+                
+                # Use the fresh agent instance (no conversation history)
+                response = fresh_agent(user_input)
                 
                 logger.info("Agent processing completed")
                 
@@ -135,8 +138,12 @@ def run_single_query(query: str) -> Optional[str]:
             logging.warning("Query too long, truncating to 500 characters")
             query = query[:500]
         
-        # Use the supervisor agent (now with built-in tracing)
-        response = supervisor_agent(query)
+        # Create a fresh agent instance for this single query
+        from .agents.supervisor_agent import create_fresh_supervisor_agent
+        fresh_agent = create_fresh_supervisor_agent()
+        
+        # Use the fresh agent (no conversation history)
+        response = fresh_agent(query)
             
         # Limit response length if needed
         response_str = str(response)

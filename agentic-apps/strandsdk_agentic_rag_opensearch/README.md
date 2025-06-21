@@ -4,13 +4,13 @@ This project implements a sophisticated multi-agent Large Language Model (LLM) s
 
 ## 🏗️ Architecture
 
-The system is built with a modular multi-agent architecture using Strands SDK patterns:
+The system is built with a modular multi-agent architecture using Strands SDK patterns with built-in OpenTelemetry tracing:
 
 ```
-SupervisorAgent (Orchestrator)
-├── KnowledgeAgent → Manages knowledge base and embeddings
-├── MCPAgent → Manages tool interactions via MCP protocol
-└── Strands SDK → Provides agent framework and tool integration
+SupervisorAgent (Orchestrator) [with built-in tracing]
+├── KnowledgeAgent → Manages knowledge base and embeddings [traced]
+├── MCPAgent → Manages tool interactions via MCP protocol [traced]
+└── Strands SDK → Provides agent framework, tool integration, and OpenTelemetry tracing
 ```
 
 ## 🚀 Key Features
@@ -19,6 +19,7 @@ SupervisorAgent (Orchestrator)
 - **SupervisorAgent**: Main orchestrator with integrated RAG capabilities using Strands SDK
 - **KnowledgeAgent**: Monitors and manages knowledge base changes
 - **MCPAgent**: Executes tasks using MCP tools and file operations
+- **Built-in Tracing**: All agents include OpenTelemetry tracing via Strands SDK
 
 ### Advanced RAG Capabilities
 - **OpenSearch Integration**: Vector storage and similarity search
@@ -31,6 +32,12 @@ SupervisorAgent (Orchestrator)
 - **Extensible Architecture**: Easy to add new MCP servers
 - **Error Handling**: Robust tool execution with fallbacks
 - **Built-in Tools**: Integration with Strands built-in tools
+
+### Observability & Tracing
+- **OpenTelemetry Integration**: Native tracing through Strands SDK
+- **Multiple Export Options**: Console, OTLP endpoints, Jaeger, Langfuse
+- **Automatic Instrumentation**: All agent interactions are automatically traced
+- **Performance Monitoring**: Track execution times, token usage, and tool calls
 
 ## 📋 Prerequisites
 
@@ -72,6 +79,11 @@ DEFAULT_MODEL=us.anthropic.claude-3-7-sonnet-20250219-v1:0
 AWS_REGION=us-east-1
 OPENSEARCH_ENDPOINT=https://your-opensearch-domain.region.es.amazonaws.com
 
+# Tracing Configuration (Optional)
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+OTEL_EXPORTER_OTLP_HEADERS=key1=value1,key2=value2
+STRANDS_OTEL_ENABLE_CONSOLE_EXPORT=true
+
 # Optional: Langfuse for observability
 LANGFUSE_HOST=https://cloud.langfuse.com
 LANGFUSE_PUBLIC_KEY=your-public-key
@@ -96,7 +108,7 @@ python -c "from src.agents.knowledge_agent import knowledge_agent; print(knowled
 ### 2. Run the Multi-Agent System
 
 ```bash
-# Start the interactive system
+# Start the interactive system (with built-in tracing)
 source venv/bin/activate
 python -m src.main
 
@@ -109,6 +121,34 @@ python -c "from src.main import run_single_query; print(run_single_query('What i
 ```bash
 # Run comprehensive tests
 python -m src.test_agents
+```
+
+## 🔍 Observability & Tracing
+
+The system includes comprehensive observability through Strands SDK's built-in OpenTelemetry integration:
+
+### Automatic Tracing
+- **All agents** are automatically traced using Strands SDK
+- **Tool calls**, **LLM interactions**, and **workflows** are captured
+- **Performance metrics** including token usage and execution times
+
+### Trace Export Options
+- **Console Output**: Set `STRANDS_OTEL_ENABLE_CONSOLE_EXPORT=true` for development
+- **OTLP Endpoint**: Configure `OTEL_EXPORTER_OTLP_ENDPOINT` for production
+- **Langfuse**: Use Langfuse credentials for advanced observability
+- **Jaeger/Zipkin**: Compatible with standard OpenTelemetry collectors
+
+### Local Development Setup
+```bash
+# Pull and run Jaeger all-in-one container
+docker run -d --name jaeger \
+  -e COLLECTOR_OTLP_ENABLED=true \
+  -p 16686:16686 \
+  -p 4317:4317 \
+  -p 4318:4318 \
+  jaegertracing/all-in-one:latest
+
+# Access Jaeger UI at http://localhost:16686
 ```
 
 ## 🧠 Agent Workflows
@@ -138,8 +178,11 @@ python -m src.test_agents
 
 ### Adding New Agents
 
+### Adding New Agents
+
 ```python
 from strands import Agent, tool
+from src.utils.strands_langfuse_integration import create_traced_agent
 
 # Define tools for the agent
 @tool
@@ -147,11 +190,14 @@ def my_custom_tool(param: str) -> str:
     """Custom tool implementation."""
     return f"Processed: {param}"
 
-# Create the agent
-my_agent = Agent(
+# Create the agent with built-in tracing
+my_agent = create_traced_agent(
+    Agent,
     model="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
     tools=[my_custom_tool],
-    system_prompt="Your specialized prompt here"
+    system_prompt="Your specialized prompt here",
+    session_id="my-agent-session",
+    user_id="system"
 )
 ```
 
@@ -175,7 +221,8 @@ if __name__ == "__main__":
 
 The system includes comprehensive observability features:
 
-- **Langfuse Integration**: Trace all agent interactions
+- **OpenTelemetry Integration**: Native tracing through Strands SDK
+- **Multiple Export Options**: Console, OTLP endpoints, Jaeger, Langfuse
 - **Workflow Summaries**: Detailed execution reports
 - **Performance Metrics**: Duration and success tracking
 - **Error Handling**: Comprehensive error reporting and recovery
@@ -202,8 +249,22 @@ result = supervisor_agent(query)
 2. **Scalability**: Agents can be scaled independently  
 3. **Reliability**: Isolated failures don't affect the entire system
 4. **Extensibility**: Easy to add new capabilities
-5. **Observability**: Comprehensive monitoring and tracing
-6. **Standards Compliance**: Uses MCP for tool integration
+5. **Observability**: Comprehensive monitoring and tracing via Strands SDK
+6. **Standards Compliance**: Uses MCP for tool integration and OpenTelemetry for tracing
+
+## 🔧 Key Improvements
+
+### Unified Architecture
+- **Single Codebase**: No separate "enhanced" versions - all functionality is built into the standard agents
+- **Built-in Tracing**: OpenTelemetry tracing is automatically enabled through Strands SDK
+- **Simplified Deployment**: One main application with all features included
+- **Consistent API**: All agents use the same tracing and configuration patterns
+
+### Enhanced Developer Experience
+- **Automatic Instrumentation**: No manual trace management required
+- **Multiple Export Options**: Console, OTLP, Jaeger, Langfuse support out of the box
+- **Environment-based Configuration**: Easy setup through environment variables
+- **Clean Code Structure**: Removed duplicate wrapper functions and complex manual tracing
 
 ## 🤝 Contributing
 

@@ -13,10 +13,13 @@ from strands_tools import file_read, file_write
 from ..tools.embedding_retriever import EmbeddingRetriever
 from ..config import config
 from ..utils.logging import log_title
-from ..utils.langfuse_config import langfuse_config
 from ..utils.model_providers import get_reasoning_model
+from ..utils.strands_langfuse_integration import create_traced_agent, setup_tracing_environment
 
 logger = logging.getLogger(__name__)
+
+# Set up tracing environment
+setup_tracing_environment()
 
 @tool
 def scan_knowledge_directory() -> str:
@@ -26,21 +29,10 @@ def scan_knowledge_directory() -> str:
     Returns:
         JSON string with file metadata
     """
-    # Create Langfuse span for directory scan
-    scan_span = langfuse_config.create_span(
-        trace=None,
-        name="knowledge-directory-scan",
-        input_data={"knowledge_dir": config.KNOWLEDGE_DIR}
-    )
-    
     try:
         knowledge_dir = Path(config.KNOWLEDGE_DIR)
         if not knowledge_dir.exists():
             result = json.dumps({"error": "Knowledge directory does not exist"})
-            
-            if scan_span and langfuse_config.is_enabled:
-                scan_span.end(output={"error": "Directory not found", "success": False})
-            
             return result
         
         files_info = []
@@ -60,25 +52,16 @@ def scan_knowledge_directory() -> str:
             "total_files": len(files_info)
         })
         
-        # Update Langfuse span with results
-        if scan_span and langfuse_config.is_enabled:
-            scan_span.end(output={
-                "total_files": len(files_info),
-                "file_types": list(set(f["type"] for f in files_info)),
-                "success": True
-            })
-        
+        logger.info(f"Scanned knowledge directory: {len(files_info)} files found")
         return result
         
     except Exception as e:
         logger.error(f"Error scanning knowledge directory: {e}")
-        error_result = json.dumps({"error": str(e)})
-        
-        if scan_span and langfuse_config.is_enabled:
-            scan_span.end(output={"error": str(e), "success": False})
+        return json.dumps({"error": str(e), "success": False})
         
         return error_result
 
+@tool
 @tool
 def embed_knowledge_files() -> str:
     """
@@ -87,13 +70,6 @@ def embed_knowledge_files() -> str:
     Returns:
         JSON string with embedding results
     """
-    # Create Langfuse span for embedding operation
-    embed_span = langfuse_config.create_span(
-        trace=None,
-        name="knowledge-files-embedding",
-        input_data={"knowledge_dir": config.KNOWLEDGE_DIR}
-    )
-    
     try:
         knowledge_dir = Path(config.KNOWLEDGE_DIR)
         retriever = EmbeddingRetriever()
@@ -199,29 +175,16 @@ def embed_knowledge_files() -> str:
                       (f" ({total_rows} CSV rows)" if total_rows > 0 else "")
         })
         
-        # Update Langfuse span with results
-        if embed_span and langfuse_config.is_enabled:
-            embed_span.end(output={
-                "embedded_count": embedded_count,
-                "total_files": total_files,
-                "success_rate": embedded_count / total_files if total_files > 0 else 0,
-                "processed_files": processed_files[:10],  # Limit to first 10 for brevity
-                "success": True
-            })
-        
+        logger.info(f"Embedding completed: {embedded_count}/{total_files} files processed")
         return result
         
     except Exception as e:
         logger.error(f"Error embedding knowledge files: {e}")
-        error_result = json.dumps({"error": str(e)})
-        
-        if embed_span and langfuse_config.is_enabled:
-            embed_span.end(output={"error": str(e), "success": False})
-        
-        return error_result
+        return json.dumps({"error": str(e), "success": False})
 
-# Create the knowledge agent
-knowledge_agent = Agent(
+# Create the knowledge agent with tracing
+knowledge_agent = create_traced_agent(
+    Agent,
     model=get_reasoning_model(),
     tools=[scan_knowledge_directory, embed_knowledge_files, file_read, file_write],
     system_prompt="""
@@ -245,72 +208,10 @@ You are KnowledgeKeeper, a specialized agent for managing knowledge base operati
 - Focus on maintaining an up-to-date and well-organized knowledge base
 
 Your goal is to ensure the knowledge base is current, properly indexed, and ready for retrieval operations.
-"""
+""",
+    session_id="knowledge-session",
+    user_id="system"
 )
 
-def knowledge_agent_with_langfuse(query: str) -> str:
-    """
-    Wrapper for knowledge agent with Langfuse tracing.
-    
-    Args:
-        query: User query to process
-        
-    Returns:
-        Agent response as string
-    """
-    # Create Langfuse trace for the knowledge operation
-    trace = langfuse_config.create_trace(
-        name="knowledge-agent-query",
-        input_data={"query": query},
-        metadata={
-            "agent_type": "knowledge",
-            "model": str(get_reasoning_model()),
-            "timestamp": datetime.now().isoformat()
-        }
-    )
-    
-    try:
-        start_time = datetime.now()
-        
-        # Call the Strands agent
-        response = knowledge_agent(query)
-        
-        end_time = datetime.now()
-        duration = (end_time - start_time).total_seconds()
-        
-        # Update trace with successful completion
-        if trace and langfuse_config.is_enabled:
-            trace.update(
-                output={
-                    "response": str(response),
-                    "success": True,
-                    "duration_seconds": duration,
-                    "response_length": len(str(response))
-                }
-            )
-        
-        logger.info(f"Knowledge agent completed query in {duration:.2f} seconds")
-        return str(response)
-        
-    except Exception as e:
-        logger.error(f"Error in knowledge agent: {e}")
-        
-        # Update trace with error
-        if trace and langfuse_config.is_enabled:
-            trace.update(
-                output={
-                    "error": str(e),
-                    "success": False,
-                    "error_type": type(e).__name__
-                }
-            )
-        
-        return f"I apologize, but I encountered an error while processing your request: {str(e)}"
-    
-    finally:
-        # Flush Langfuse traces
-        if langfuse_config.is_enabled:
-            langfuse_config.flush()
-
-# Export both the original agent and the wrapped version
-__all__ = ["knowledge_agent", "knowledge_agent_with_langfuse"]
+# Export the agent
+__all__ = ["knowledge_agent"]

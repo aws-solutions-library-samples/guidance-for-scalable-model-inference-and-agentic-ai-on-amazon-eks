@@ -15,9 +15,9 @@ import logging
 from typing import Optional
 from .config import config
 from .utils.logging import setup_logging, log_title
-from .agents.supervisor_agent import supervisor_agent, supervisor_agent_with_langfuse
-from .agents.knowledge_agent import knowledge_agent, knowledge_agent_with_langfuse
-from .agents.mcp_agent import mcp_agent, mcp_agent_with_langfuse
+from .agents.supervisor_agent import supervisor_agent
+from .agents.knowledge_agent import knowledge_agent
+from .agents.mcp_agent import mcp_agent
 
 def main():
     """Main application entry point."""
@@ -78,13 +78,9 @@ def run_interactive_mode():
                     print("⚠️ Query is too long, truncating to 500 characters...")
                     user_input = user_input[:500]
                 
-                # Use the Langfuse-enabled supervisor agent if Langfuse is configured
-                if config.is_langfuse_enabled():
-                    response = supervisor_agent_with_langfuse(user_input)
-                    print(f"\n🤖 Response (with Langfuse tracing):\n{response}")
-                else:
-                    response = supervisor_agent(user_input)
-                    print(f"\n🤖 Response:\n{response}")
+                # Use the supervisor agent (now with built-in tracing)
+                response = supervisor_agent(user_input)
+                print(f"\n🤖 Response:\n{response}")
                 
             except Exception as e:
                 print(f"\n❌ Error: {e}")
@@ -109,11 +105,8 @@ def run_single_query(query: str) -> Optional[str]:
             logging.warning("Query too long, truncating to 500 characters")
             query = query[:500]
         
-        # Use the Langfuse-enabled supervisor agent if Langfuse is configured
-        if config.is_langfuse_enabled():
-            response = supervisor_agent_with_langfuse(query)
-        else:
-            response = supervisor_agent(query)
+        # Use the supervisor agent (now with built-in tracing)
+        response = supervisor_agent(query)
             
         # Limit response length if needed
         response_str = str(response)

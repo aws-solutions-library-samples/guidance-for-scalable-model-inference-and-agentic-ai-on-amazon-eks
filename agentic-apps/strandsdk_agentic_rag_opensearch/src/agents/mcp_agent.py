@@ -11,10 +11,13 @@ from strands.tools.mcp import MCPClient
 from mcp import stdio_client, StdioServerParameters
 from ..config import config
 from ..utils.logging import log_title
-from ..utils.langfuse_config import langfuse_config
 from ..utils.model_providers import get_reasoning_model
+from ..utils.strands_langfuse_integration import create_traced_agent, setup_tracing_environment
 
 logger = logging.getLogger(__name__)
+
+# Set up tracing environment
+setup_tracing_environment()
 
 @tool
 def file_write(content: str, path: str = None, filename: str = None) -> str:
@@ -115,8 +118,9 @@ def execute_with_mcp_tools(task_description: str, context: str = "") -> str:
         
         return error_result
 
-# Create the MCP agent with available tools
-mcp_agent = Agent(
+# Create the MCP agent with tracing
+mcp_agent = create_traced_agent(
+    Agent,
     model=get_reasoning_model(),
     tools=[execute_with_mcp_tools, file_write],
     system_prompt="""
@@ -142,72 +146,10 @@ You are ToolMaster, a specialized agent for executing tasks using various tools 
 - Be thorough and accurate in your task execution
 
 Your goal is to complete user tasks effectively using the available tools and context.
-"""
+""",
+    session_id="mcp-session",
+    user_id="system"
 )
 
-def mcp_agent_with_langfuse(query: str) -> str:
-    """
-    Wrapper for MCP agent with Langfuse tracing.
-    
-    Args:
-        query: User query to process
-        
-    Returns:
-        Agent response as string
-    """
-    # Create Langfuse trace for the MCP operation
-    trace = langfuse_config.create_trace(
-        name="mcp-agent-query",
-        input_data={"query": query},
-        metadata={
-            "agent_type": "mcp",
-            "model": str(get_reasoning_model()),
-            "timestamp": datetime.now().isoformat()
-        }
-    )
-    
-    try:
-        start_time = datetime.now()
-        
-        # Call the Strands agent
-        response = mcp_agent(query)
-        
-        end_time = datetime.now()
-        duration = (end_time - start_time).total_seconds()
-        
-        # Update trace with successful completion
-        if trace and langfuse_config.is_enabled:
-            trace.update(
-                output={
-                    "response": str(response),
-                    "success": True,
-                    "duration_seconds": duration,
-                    "response_length": len(str(response))
-                }
-            )
-        
-        logger.info(f"MCP agent completed query in {duration:.2f} seconds")
-        return str(response)
-        
-    except Exception as e:
-        logger.error(f"Error in MCP agent: {e}")
-        
-        # Update trace with error
-        if trace and langfuse_config.is_enabled:
-            trace.update(
-                output={
-                    "error": str(e),
-                    "success": False,
-                    "error_type": type(e).__name__
-                }
-            )
-        
-        return f"I apologize, but I encountered an error while processing your request: {str(e)}"
-    
-    finally:
-        # Flush Langfuse traces
-        if langfuse_config.is_enabled:
-            langfuse_config.flush()
-
-# Export both the original agent and the wrapped version
-__all__ = ["mcp_agent", "mcp_agent_with_langfuse"]
+# Export the agent
+__all__ = ["mcp_agent", "file_write"]

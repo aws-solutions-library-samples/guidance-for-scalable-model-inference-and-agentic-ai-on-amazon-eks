@@ -227,22 +227,83 @@ def check_chunks_relevance(results: str, question: str):
             if not question or not isinstance(question, str):
                 raise ValueError("Invalid input: 'question' must be a non-empty string.")
 
-            # Extract content chunks using regex
-            pattern = r"Score:.*?\nContent:\s*(.*?)(?=Score:|\Z)"
-            docs = [chunk.strip() for chunk in re.findall(pattern, results, re.DOTALL)]
+            # Extract content chunks using regex with improved error handling
+            patterns_to_try = [
+                r"Score:.*?\nContent:\s*(.*?)(?=\n\nScore:|\Z)",  # Handle double newlines
+                r"Score:.*?\nContent:\s*(.*?)(?=Score:|\Z)",      # Original pattern
+                r"Score:\s*[\d.]+\s*\nContent:\s*(.*?)(?=\n\nScore:|\Z)",  # More specific score pattern
+            ]
+            
+            docs = []
+            pattern_used = None
+            
+            for i, pattern in enumerate(patterns_to_try):
+                try:
+                    docs = [chunk.strip() for chunk in re.findall(pattern, results, re.DOTALL) if chunk.strip()]
+                    if docs:
+                        pattern_used = f"Pattern {i+1}"
+                        logger.debug(f"Successfully extracted {len(docs)} chunks using pattern {i+1}")
+                        break
+                except Exception as e:
+                    logger.warning(f"Pattern {i+1} failed: {e}")
+                    continue
+            
+            # If no patterns worked, try a more flexible approach
+            if not docs:
+                logger.warning("Standard patterns failed, trying flexible extraction...")
+                flexible_pattern = r"Content:\s*([^\n]+(?:\n(?!Score:)[^\n]*)*)"
+                try:
+                    docs = [chunk.strip() for chunk in re.findall(flexible_pattern, results, re.MULTILINE) if chunk.strip()]
+                    if docs:
+                        pattern_used = "Flexible pattern"
+                        logger.info(f"Flexible extraction found {len(docs)} chunks")
+                except Exception as e:
+                    logger.error(f"Flexible extraction also failed: {e}")
 
             if not docs:
-                raise ValueError("No valid content chunks found in 'results'.")
+                # Provide detailed debugging information
+                debug_info = {
+                    "results_length": len(results),
+                    "contains_score": "Score:" in results,
+                    "contains_content": "Content:" in results,
+                    "results_preview": results[:200] if len(results) > 200 else results
+                }
+                logger.error(f"No valid content chunks found. Debug info: {debug_info}")
+                raise ValueError(f"No valid content chunks found in 'results'. Debug: {debug_info}")
 
             # Limit the number of chunks to avoid timeout
             if len(docs) > 3:
                 docs = docs[:3]  # Take only first 3 chunks
                 logger.info(f"Limited evaluation to first 3 chunks out of {len(docs)} total")
 
-            # Prepare evaluation sample
+            # Generate a proper answer from the context for RAGAs evaluation
+            # This is necessary because LLMContextPrecisionWithoutReference evaluates
+            # whether the context was useful in arriving at the given answer
+            try:
+                context_for_answer = "\n\n".join(docs[:2])  # Use first 2 chunks
+                answer_prompt = f"""Based on the following context, provide a brief answer to the question.
+
+Question: {question}
+Context: {context_for_answer}
+
+Answer:"""
+                
+                # Use a simple model call to generate the answer
+                from langchain_aws import ChatBedrockConverse
+                answer_llm = ChatBedrockConverse(model_id='us.anthropic.claude-3-7-sonnet-20250219-v1:0')
+                answer_response = answer_llm.invoke(answer_prompt)
+                generated_answer = answer_response.content.strip()
+                
+                logger.debug(f"Generated answer for RAGAs evaluation: {generated_answer[:100]}...")
+                
+            except Exception as e:
+                logger.warning(f"Failed to generate answer for RAGAs evaluation: {e}")
+                generated_answer = "Unable to generate answer from context"
+
+            # Prepare evaluation sample with proper answer
             sample = SingleTurnSample(
                 user_input=question,
-                response="placeholder-response",  # required dummy response
+                response=generated_answer,  # Use generated answer instead of placeholder
                 retrieved_contexts=docs
             )
 

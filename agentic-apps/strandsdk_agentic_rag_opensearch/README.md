@@ -3,6 +3,7 @@
 This project implements a sophisticated multi-agent Large Language Model (LLM) system using the **Strands SDK** that combines Model Context Protocol (MCP) for tool usage and Retrieval Augmented Generation (RAG) for enhanced context awareness, using OpenSearch as the vector database.
 
 ## 🏗️ Architecture
+![Architecture Diagram](images/arch.png)
 
 The system is built with a modular multi-agent architecture using Strands SDK patterns with built-in OpenTelemetry tracing:
 
@@ -48,14 +49,149 @@ SupervisorAgent (Orchestrator) [with built-in tracing]
 - **Automatic Instrumentation**: All agent interactions are automatically traced
 - **Performance Monitoring**: Track execution times, token usage, and tool calls
 
-## 📋 Prerequisites
+
+## 🏃‍♂️ Usage
+
+## Option 1, Container Deployment on Kubernetes
+
+For production deployments, use the containerized solution with Kubernetes:
+
+### 📋 Prerequisites
 
 - Python 3.9+
-- OpenAI API key or compatible embedding endpoint
-- AWS OpenSearch Domain
+- EKS cluster
+- TAVILY_API_KEY
 - AWS credentials configured
 
-## 🛠️ Installation
+### 🛠️ Installation
+
+#### 1. Build and Push Container Images
+
+```bash
+# Build Docker images and push to ECR
+./build-images.sh
+
+# This script will:
+# - Create ECR repositories if they don't exist
+# - Build main application and MCP server images
+# - Push images to ECR
+# - Update Kubernetes deployment files with ECR image URLs
+```
+
+#### 2. Deploy OpenSearch Cluster
+
+```bash
+# Deploy OpenSearch with CloudFormation and EKS Pod Identity
+./deploy-opensearch.sh [stack-name] [region] [namespace]
+
+# Example:
+./deploy-opensearch.sh strandsdk-rag-opensearch-stack us-east-1 default
+
+# This script will:
+# - Deploy OpenSearch cluster via CloudFormation
+# - Set up EKS Pod Identity for secure access
+# - Create the vector index automatically
+# - Configure IAM roles and policies
+```
+
+#### 3. Configure Kubernetes Secrets and ConfigMap
+
+Update the ConfigMap with your actual service endpoints and configuration:
+
+```bash
+# Apply the ConfigMap and Secrets
+kubectl apply -f k8s/configmap.yaml
+# Edit the ConfigMap with your actual values
+kubectl edit configmap app-config
+
+# Key values to update:
+# - LITELLM_BASE_URL: Your LiteLLM service endpoint
+# - EMBEDDING_BASE_URL: Your embedding service endpoint  
+# - OPENSEARCH_ENDPOINT: From OpenSearch deployment output
+# - LANGFUSE_HOST: Your Langfuse instance (optional)
+```
+
+Update secrets with your API keys:
+
+```bash
+# Update secrets with base64 encoded values
+kubectl edit secret app-secrets
+
+# To encode your keys:
+echo -n "your-api-key" | base64
+
+# Keys to update:
+# - litellm-api-key: Your LiteLLM API key
+# - embedding-api-key: Your embedding service API key
+# - tavily-api-key: Your Tavily API key for web search
+# - langfuse-public-key: Langfuse public key (optional)
+# - langfuse-secret-key: Langfuse secret key (optional)
+```
+
+#### 4. Deploy Kubernetes Applications
+
+```bash
+# Apply the service account (if not already created)
+kubectl apply -f k8s/service-account.yaml
+
+# Deploy the MCP server first
+kubectl apply -f k8s/tavily-mcp-deployment.yaml
+
+# Deploy the main application
+kubectl apply -f k8s/main-app-deployment.yaml
+
+# Check deployment status
+kubectl get pods -l app=tavily-mcp-server
+kubectl get pods -l app=strandsdk-rag-app
+
+# Check services and ingress
+kubectl get svc
+kubectl get ingress
+```
+
+#### 5. Test the Deployed System
+
+```bash
+# Get the Application Load Balancer endpoint
+ALB_ENDPOINT=$(kubectl get ingress strandsdk-rag-ingress-alb -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+
+# Test the health endpoint
+curl -X GET "http://${ALB_ENDPOINT}/health"
+
+# Test a simple query
+curl -X POST "http://${ALB_ENDPOINT}/query" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "What is Bell'\''s palsy?",
+    "include_web_search": true
+  }'
+
+# Test knowledge embedding
+curl -X POST "http://${ALB_ENDPOINT}/embed-knowledge" \
+  -H "Content-Type: application/json"
+
+# Test with a more complex medical query
+curl -X POST "http://${ALB_ENDPOINT}/query" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question": "Find information about \"What was the purpose of the study on encainide and flecainide in patients with supraventricular arrhythmias\". Summarize this information and create a comprehensive story.Save the story and important information to a file named \"test1.md\" in the output directory as a beautiful markdown file.",
+    "top_k": 3
+  }' \
+  --max-time 600
+```
+
+
+## Option 2: Local Development
+
+### 📋 Prerequisites
+
+- Python 3.9+
+- EKS cluster
+- TAVILY_API_KEY
+- Public facing Opensearch cluster
+- AWS credentials configured
+
+### 🛠️ Installation
 
 ```bash
 # Clone the repository
@@ -74,7 +210,7 @@ cp .env.example .env
 # Edit .env with your configuration
 ```
 
-## ⚙️ Configuration
+### ⚙️ Configuration
 
 Create a `.env` file with the following variables:
 
@@ -108,9 +244,10 @@ VECTOR_INDEX_NAME=knowledge-embeddings
 TOP_K_RESULTS=5
 ```
 
-## 🏃‍♂️ Usage
+### 🏃‍♂️ Deploy
 
-### 1. Start Tavily MCP Server (for Web Search)
+
+#### 1. Start Tavily MCP Server (for Web Search)
 
 ```bash
 # Start the Tavily web search server
@@ -120,14 +257,14 @@ python scripts/start_tavily_server.py
 python src/mcp_servers/tavily_search_server.py
 ```
 
-### 2. Embed Knowledge Documents
+#### 2. Embed Knowledge Documents
 
 ```bash
 # Process and embed all knowledge documents
 python -c "from src.agents.knowledge_agent import knowledge_agent; print(knowledge_agent('Please embed all knowledge files'))"
 ```
 
-### 3. Run the Multi-Agent System
+#### 3. Run the Multi-Agent System
 
 ```bash
 # Standard mode (with built-in tracing)
@@ -147,7 +284,7 @@ python run_single_query_clean.py "What is Bell's palsy?"
 python run_completely_clean.py "What is Bell's palsy?"
 ```
 
-### 4. Test the System
+#### 4. Test the System
 
 ```bash
 # Run comprehensive tests including web search integration
@@ -164,6 +301,42 @@ python run_clean_test.py
 ```
 
 **Note**: The enhanced system uses RAGAs for chunk relevance evaluation, which may generate harmless async cleanup warnings. Use `run_clean_test.py` for a cleaner testing experience.
+
+
+#### Container Deployment Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Application Load Balancer                │
+│                    (ALB Ingress Controller)                 │
+└─────────────────────┬───────────────────────────────────────┘
+                      │
+┌─────────────────────┴───────────────────────────────────────┐
+│                 Kubernetes Cluster (EKS)                   │
+│                                                             │
+│  ┌─────────────────────┐    ┌─────────────────────────────┐ │
+│  │   Main Application  │    │     MCP Server              │ │
+│  │   (Port 8000)       │◄──►│   (Tavily Web Search)       │ │
+│  │                     │    │     (Port 8001)             │ │
+│  └─────────────────────┘    └─────────────────────────────┘ │
+│              │                                              │
+│              ▼                                              │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │              OpenSearch Cluster                         │ │
+│  │         (Vector Database + Search)                      │ │
+│  └─────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Container Features
+
+- **Auto-scaling**: Kubernetes HPA for dynamic scaling
+- **Health Checks**: Built-in health endpoints for monitoring
+- **Service Discovery**: Internal service communication via Kubernetes DNS
+- **Security**: EKS Pod Identity for secure AWS service access
+- **Observability**: OpenTelemetry tracing with multiple export options
+- **Load Balancing**: ALB for external traffic distribution
+- **Configuration Management**: ConfigMaps and Secrets for environment-specific settings
 
 ## 🔍 Observability & Tracing
 

@@ -11,6 +11,9 @@ RED='\033[0;31m'
 YELLOW='\033[0;33m'
 NC='\033[0m' # No Color
 
+# Export current EKS cluster name
+export CLUSTER_NAME=$(kubectl config current-context | cut -d'/' -f2)
+
 # Function to display messages with timestamp
 log() {
   echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1"
@@ -32,6 +35,37 @@ success() {
 # Check prerequisites
 check_prerequisites() {
   log "Checking prerequisites..."
+  
+  # Install gettext if not available
+  if ! command -v envsubst &> /dev/null; then
+    log "Installing gettext package for envsubst..."
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+      # macOS
+      if command -v brew &> /dev/null; then
+        brew install gettext
+        # Add gettext to PATH for current session
+        export PATH="/usr/local/opt/gettext/bin:$PATH"
+        # For Apple Silicon Macs
+        if [[ -d "/opt/homebrew/opt/gettext/bin" ]]; then
+          export PATH="/opt/homebrew/opt/gettext/bin:$PATH"
+        fi
+      else
+        error "Homebrew is not installed. Please install Homebrew first or install gettext manually."
+      fi
+    elif command -v apt-get &> /dev/null; then
+      # Ubuntu/Debian
+      sudo apt-get update && sudo apt-get install -y gettext
+    elif command -v yum &> /dev/null; then
+      # RHEL/CentOS/Amazon Linux
+      sudo yum install -y gettext
+    elif command -v dnf &> /dev/null; then
+      # Fedora
+      sudo dnf install -y gettext
+    else
+      error "Cannot install gettext. Please install it manually for your distribution."
+    fi
+    success "gettext installed successfully."
+  fi
   
   # Check AWS CLI
   if ! command -v aws &> /dev/null; then
@@ -163,11 +197,11 @@ install_gp3_storage() {
 install_karpenter_nodepools() {
   log "Installing Karpenter node pools..."
   
-  # Install all node pool configurations
+  # Install all node pool configurations with environment variable substitution
   for nodepool_file in karpenter_nodepool/*.yaml; do
     if [ -f "$nodepool_file" ]; then
-      log "Installing node pool: $(basename "$nodepool_file")"
-      kubectl apply -f "$nodepool_file"
+      log "Installing node pool: $(basename "$nodepool_file") with cluster name: $CLUSTER_NAME"
+      envsubst < "$nodepool_file" | kubectl apply -f -
     fi
   done
   
@@ -210,6 +244,7 @@ verify_installations() {
 # Main execution
 main() {
   log "Starting validation and installation process..."
+  log "Detected EKS cluster name: $CLUSTER_NAME"
   
   check_prerequisites
   validate_eks_cluster

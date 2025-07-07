@@ -7,7 +7,6 @@ import asyncio
 import re
 import logging
 import json
-import uuid
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from strands import Agent, tool
@@ -46,9 +45,8 @@ llm_for_evaluation = LangchainLLMWrapper(llm_for_evaluation)
 tavily_mcp_client = None
 
 def get_tavily_mcp_client():
-    """Get or create Tavily MCP client with proper session management"""
+    """Get or create Tavily MCP client"""
     global tavily_mcp_client
-    
     if tavily_mcp_client is None:
         try:
             # Use config for MCP service URL
@@ -58,7 +56,6 @@ def get_tavily_mcp_client():
         except Exception as e:
             logger.warning(f"Failed to initialize Tavily MCP client: {e}")
             tavily_mcp_client = None
-    
     return tavily_mcp_client
 
 def calculate_relevance_score(results: List[Dict], query: str) -> float:
@@ -598,95 +595,34 @@ class SupervisorAgentWrapper:
     """Wrapper to handle MCP client context for supervisor agent"""
     
     def __init__(self):
-        self.mcp_client = None
+        self.mcp_client = get_tavily_mcp_client()
         self.agent = None
-        self._initialized = False
-    
-    def _ensure_initialized(self):
-        """Ensure the agent is initialized, with lazy loading"""
-        if not self._initialized:
-            try:
-                self.mcp_client = get_tavily_mcp_client()
-                self._create_agent()
-                self._initialized = True
-            except Exception as e:
-                logger.error(f"Failed to initialize supervisor agent: {e}")
-                logger.warning("Creating agent without MCP tools due to initialization failure")
-                self.mcp_client = None
-                self._create_agent_without_mcp()
-                self._initialized = True
+        self._create_agent()
     
     def _create_agent(self):
-        """Prepare for agent creation - actual creation happens in __call__ within MCP context"""
-        if not self.mcp_client:
-            self._create_agent_without_mcp()
-    
-    def _create_agent_without_mcp(self):
-        """Create agent without MCP tools"""
-        logger.warning("Creating supervisor agent without MCP tools")
-        self.agent = create_traced_agent(
-            Agent,
-            model=get_reasoning_model(),
-            tools=[
-                check_chunks_relevance,
-                search_knowledge_base, 
-                check_knowledge_status, 
-                file_read, 
-                file_write
-            ],
-            system_prompt="""
-You are a RAG system. Answer questions using retrieved information from the knowledge base.
-
-WORKFLOW:
-1. ALWAYS start with check_knowledge_status() - verify knowledge base first
-2. search_knowledge_base(query="terms") - search internal data
-3. Use the retrieved information to answer questions
-4. When writing files, ALWAYS use the output directory - call file_write with filename parameter only
-5. Cite sources clearly
-
-TOOLS AVAILABLE:
-- check_knowledge_status(): Check KB status - ALWAYS CALL THIS FIRST
-- search_knowledge_base(query): Search KB (returns relevance_score)
-- file_read(path): Read files
-- file_write(content, filename): Write files to output directory (use filename parameter, not path)
-
-IMPORTANT: 
-- ALWAYS start with check_knowledge_status()
-- ALWAYS use filename parameter (not path) for file_write to save to output directory
-
-FORMAT: Be concise, cite sources, use bullets when helpful
-""",
-            session_id="supervisor-session",
-            user_id="system"
-        )
-    
-    def __call__(self, query: str):
-        """Call the agent with proper MCP context"""
-        self._ensure_initialized()
+        """Create the agent with proper MCP context"""
         if self.mcp_client:
-            # Use context manager for the entire agent lifecycle
             with self.mcp_client:
-                # Create agent within context if needed
-                if not hasattr(self, '_agent_created_in_context'):
-                    # Get the tools from the MCP server within the context
-                    mcp_tools = self.mcp_client.list_tools_sync()
-                    logger.info(f"Loaded {len(mcp_tools)} MCP tools from Tavily server")
-                    
-                    # Combine local tools with MCP tools
-                    all_tools = [
-                        check_chunks_relevance,
-                        search_knowledge_base, 
-                        check_knowledge_status, 
-                        file_read, 
-                        file_write
-                    ] + mcp_tools
-                    
-                    # Create agent with all tools within the MCP context
-                    self.agent = create_traced_agent(
-                        Agent,
-                        model=get_reasoning_model(),
-                        tools=all_tools,
-                        system_prompt="""You are a RAG system with web search capabilities. Answer questions using retrieved info and real-time web data.
+                # Get the tools from the MCP server
+                mcp_tools = self.mcp_client.list_tools_sync()
+                logger.info(f"Loaded {len(mcp_tools)} MCP tools from Tavily server")
+                
+                # Combine local tools with MCP tools
+                all_tools = [
+                    check_chunks_relevance,
+                    search_knowledge_base, 
+                    check_knowledge_status, 
+                    file_read, 
+                    file_write
+                ] + mcp_tools
+                
+                # Create agent within the MCP context
+                self.agent = create_traced_agent(
+                    Agent,
+                    model=get_reasoning_model(),
+                    tools=all_tools,
+                    system_prompt="""
+You are a RAG system with web search capabilities. Answer questions using retrieved info and real-time web data.
 
 WORKFLOW:
 1. check_knowledge_status() - verify knowledge base
@@ -710,67 +646,14 @@ DECISION LOGIC:
 4. For weather, news, or current events: prefer web search
 5. For established knowledge: prefer RAG results
 
-FORMAT: Be concise, cite sources, use bullets when helpful""",
-                        session_id="supervisor-session",
-                        user_id="system"
-                    )
-                    self._agent_created_in_context = True
-                
-                # Execute the agent within the MCP context
-                return self.agent(query)
+FORMAT: Be concise, cite sources, use bullets when helpful
+""",
+                    session_id="supervisor-session",
+                    user_id="system"
+                )
         else:
-            return self.agent(query)
-
-# Create the default supervisor agent
-supervisor_agent = SupervisorAgentWrapper()
-
-def create_fresh_supervisor_agent():
-    """
-    Create a fresh supervisor agent instance with no conversation history.
-    This ensures each query starts with a clean context window.
-    """
-    import uuid
-    
-    # Create a unique session ID for each fresh agent
-    fresh_session_id = f"supervisor-{uuid.uuid4().hex[:8]}"
-    
-    # Return a fresh wrapper instance
-def create_fresh_supervisor_agent(fresh_session_id: str = None):
-    """Create a fresh supervisor agent with a new session ID and proper MCP context management"""
-    if fresh_session_id is None:
-        fresh_session_id = f"fresh-supervisor-{uuid.uuid4().hex[:8]}"
-    
-    class FreshSupervisorAgentWrapper:
-        """Fresh wrapper to handle MCP client context for supervisor agent"""
-        
-        def __init__(self, session_id):
-            self.mcp_client = None
-            self.agent = None
-            self.session_id = session_id
-            self._initialized = False
-        
-        def _ensure_initialized(self):
-            """Ensure the agent is initialized, with lazy loading"""
-            if not self._initialized:
-                try:
-                    self.mcp_client = get_tavily_mcp_client()
-                    self._create_agent()
-                    self._initialized = True
-                except Exception as e:
-                    logger.error(f"Failed to create fresh agent with MCP tools: {e}")
-                    logger.warning("Creating fresh agent without MCP tools due to MCP failure")
-                    self.mcp_client = None
-                    self._create_agent_without_mcp()
-                    self._initialized = True
-        
-        def _create_agent(self):
-            """Prepare for agent creation - actual creation happens in __call__ within MCP context"""
-            if not self.mcp_client:
-                self._create_agent_without_mcp()
-        
-        def _create_agent_without_mcp(self):
-            """Create agent without MCP tools"""
-            logger.warning("Creating fresh agent without MCP tools due to client unavailability")
+            # Fallback: create agent without MCP tools
+            logger.warning("Creating agent without MCP tools due to client unavailability")
             self.agent = create_traced_agent(
                 Agent,
                 model=get_reasoning_model(),
@@ -781,7 +664,8 @@ def create_fresh_supervisor_agent(fresh_session_id: str = None):
                     file_read, 
                     file_write
                 ],
-                system_prompt="""You are a RAG system. Answer questions using retrieved information from the knowledge base.
+                system_prompt="""
+You are a RAG system. Answer questions using retrieved information from the knowledge base.
 
 WORKFLOW:
 1. ALWAYS start with check_knowledge_status() - verify knowledge base first
@@ -800,20 +684,48 @@ IMPORTANT:
 - ALWAYS start with check_knowledge_status()
 - ALWAYS use filename parameter (not path) for file_write to save to output directory
 
-FORMAT: Be concise, cite sources, use bullets when helpful""",
-                session_id=self.session_id,
+FORMAT: Be concise, cite sources, use bullets when helpful
+""",
+                session_id="supervisor-session",
                 user_id="system"
             )
+    
+    def __call__(self, query: str):
+        """Call the agent with proper MCP context"""
+        if self.mcp_client:
+            with self.mcp_client:
+                return self.agent(query)
+        else:
+            return self.agent(query)
+
+# Create the default supervisor agent
+supervisor_agent = SupervisorAgentWrapper()
+
+def create_fresh_supervisor_agent():
+    """
+    Create a fresh supervisor agent instance with no conversation history.
+    This ensures each query starts with a clean context window.
+    """
+    import uuid
+    
+    # Create a unique session ID for each fresh agent
+    fresh_session_id = f"supervisor-{uuid.uuid4().hex[:8]}"
+    
+    # Return a fresh wrapper instance
+    class FreshSupervisorAgentWrapper:
+        """Fresh wrapper to handle MCP client context for supervisor agent"""
         
-        def __call__(self, query: str):
-            """Call the agent with proper MCP context"""
-            self._ensure_initialized()
+        def __init__(self, session_id):
+            self.mcp_client = get_tavily_mcp_client()
+            self.agent = None
+            self.session_id = session_id
+            self._create_agent()
+        
+        def _create_agent(self):
+            """Create the agent with proper MCP context"""
             if self.mcp_client:
-                # Use context manager for the entire agent lifecycle
-                with self.mcp_client:
-                    # Create agent within context if needed
-                    if not hasattr(self, '_agent_created_in_context'):
-                        # Get the tools from the MCP server within the context
+                    with self.mcp_client:
+                        # Get the tools from the MCP server
                         mcp_tools = self.mcp_client.list_tools_sync()
                         logger.info(f"Loaded {len(mcp_tools)} MCP tools from Tavily server for fresh agent")
                         
@@ -826,12 +738,13 @@ FORMAT: Be concise, cite sources, use bullets when helpful""",
                             file_write
                         ] + mcp_tools
                         
-                        # Create agent with all tools within the MCP context
+                        # Create agent within the MCP context
                         self.agent = create_traced_agent(
                             Agent,
                             model=get_reasoning_model(),
                             tools=all_tools,
-                            system_prompt="""You are a RAG system with web search capabilities and advanced relevance evaluation. Answer questions using retrieved info and real-time web data.
+                            system_prompt="""
+You are a RAG system with web search capabilities and advanced relevance evaluation. Answer questions using retrieved info and real-time web data.
 
 ENHANCED WORKFLOW WITH RAG EVALUATION:
 1. ALWAYS start with check_knowledge_status() - verify knowledge base first
@@ -871,13 +784,54 @@ IMPORTANT:
 - ALWAYS start with check_knowledge_status()
 - ALWAYS evaluate chunk relevance before deciding between RAG and web search
 - ALWAYS use filename parameter (not path) for file_write to save to output directory
-- Be transparent about which source provided the information and the relevance evaluation results""",
-                            session_id=self.session_id,
-                            user_id="system"
-                        )
-                        self._agent_created_in_context = True
-                    
-                    # Execute the agent within the MCP context
+- Be transparent about which source provided the information and the relevance evaluation results
+""",
+                        session_id=self.session_id,
+                        user_id="system"
+                    )
+            else:
+                # Fallback: create agent without MCP tools
+                logger.warning("Creating fresh agent without MCP tools due to client unavailability")
+                self.agent = create_traced_agent(
+                    Agent,
+                    model=get_reasoning_model(),
+                    tools=[
+                        check_chunks_relevance,
+                        search_knowledge_base, 
+                        check_knowledge_status, 
+                        file_read, 
+                        file_write
+                    ],
+                    system_prompt="""
+You are a RAG system. Answer questions using retrieved information from the knowledge base.
+
+WORKFLOW:
+1. ALWAYS start with check_knowledge_status() - verify knowledge base first
+2. search_knowledge_base(query="terms") - search internal data
+3. Use the retrieved information to answer questions
+4. When writing files, ALWAYS use the output directory - call file_write with filename parameter only
+5. Cite sources clearly
+
+TOOLS AVAILABLE:
+- check_knowledge_status(): Check KB status - ALWAYS CALL THIS FIRST
+- search_knowledge_base(query): Search KB (returns relevance_score)
+- file_read(path): Read files
+- file_write(content, filename): Write files to output directory (use filename parameter, not path)
+
+IMPORTANT: 
+- ALWAYS start with check_knowledge_status()
+- ALWAYS use filename parameter (not path) for file_write to save to output directory
+
+FORMAT: Be concise, cite sources, use bullets when helpful
+""",
+                    session_id=self.session_id,
+                    user_id="system"
+                )
+        
+        def __call__(self, query: str):
+            """Call the agent with proper MCP context"""
+            if self.mcp_client:
+                with self.mcp_client:
                     return self.agent(query)
             else:
                 return self.agent(query)

@@ -64,19 +64,19 @@ spec:
   subnetSelectorTerms:
     - tags:
         Environment: dev
-        Name: wre-dev-private-*
-        karpenter.sh/discovery: wre-dev
+        Name: ${CLUSTER_NAME}-private-*
+        karpenter.sh/discovery: ${CLUSTER_NAME}
   securityGroupSelectorTerms:
     - tags:
         Environment: dev
-        karpenter.sh/discovery: wre-dev
+        karpenter.sh/discovery: ${CLUSTER_NAME}
   amiFamily: "AL2023"
   amiSelectorTerms:
     - name: "amazon-eks-gpu-node-1.29-v*"
-  role: KarpenterNode-wre-dev
+  role: KarpenterNode-${CLUSTER_NAME}
   tags:
     Environment: dev
-    karpenter.sh/discovery: wre-dev
+    karpenter.sh/discovery: ${CLUSTER_NAME}
     model-inferencing: "gpu-inference"
     ray-control-plane: "false"
     Provisioned-By: aws-solutions-library-samples/guidance-for-automated-provisioning-of-application-ready-amazon-eks-clusters

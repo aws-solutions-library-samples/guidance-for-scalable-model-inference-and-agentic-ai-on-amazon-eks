@@ -23,7 +23,7 @@ help:
 	@echo "  - Required environment variables configured"
 
 # Complete installation
-install: verify-cluster setup-base setup-models setup-gateway setup-observability
+install: verify-cluster setup-base setup-models setup-observability setup-gateway
 	@echo "✅ Complete installation finished!"
 	@echo ""
 	@echo "Next steps:"
@@ -61,8 +61,20 @@ setup-models: setup-base
 	cd model-hosting && chmod +x setup.sh && ./setup.sh
 	@echo "✅ Model hosting services deployed"
 
+# Setup observability
+setup-observability: setup-models
+	@echo "📊 Deploying observability tools..."
+	cd model-observability && chmod +x setup.sh && ./setup.sh
+	@echo "✅ Observability tools deployed"
+	@echo ""
+	@echo "⚠️  IMPORTANT: Configure Langfuse after deployment:"
+	@echo "   1. Access Langfuse web interface"
+	@echo "   2. Create organization 'test' and project 'demo'"
+	@echo "   3. Go to 'Tracing' menu and set up tracing"
+	@echo "   4. Record Public Key (PK) and Secret Key (SK)"
+
 # Setup model gateway
-setup-gateway: setup-models
+setup-gateway: setup-observability
 	@echo "🌐 Deploying model gateway..."
 	cd model-gateway && chmod +x setup.sh && ./setup.sh
 	@echo "✅ Model gateway deployed"
@@ -73,18 +85,6 @@ setup-gateway: setup-models
 	@echo "   3. Go to 'Virtual Keys' and create a new key"
 	@echo "   4. Mark 'All Team Models' for the models field"
 	@echo "   5. Store the generated secret key for agentic applications"
-
-# Setup observability
-setup-observability: setup-gateway
-	@echo "📊 Deploying observability tools..."
-	cd model-observability && chmod +x setup.sh && ./setup.sh
-	@echo "✅ Observability tools deployed"
-	@echo ""
-	@echo "⚠️  IMPORTANT: Configure Langfuse after deployment:"
-	@echo "   1. Access Langfuse web interface"
-	@echo "   2. Create organization 'test' and project 'demo'"
-	@echo "   3. Go to 'Tracing' menu and set up tracing"
-	@echo "   4. Record Public Key (PK) and Secret Key (SK)"
 
 # Setup Intelligent Document Processing
 setup-idp:
@@ -212,6 +212,6 @@ status:
 	kubectl get ingress --all-namespaces
 
 # Quick development setup (models + gateway only)
-dev-setup: verify-cluster setup-base setup-models setup-gateway
+dev-setup: verify-cluster setup-base setup-models setup-observability setup-gateway
 	@echo "✅ Development setup complete!"
-	@echo "Core components (base, models, gateway) are ready for development."
+	@echo "Core components (base, models, observability, gateway) are ready for development."

@@ -39,7 +39,9 @@ This architecture provides flexibility to choose between cost-optimized CPU infe
 
 ## Quick Start Guide
 
-We provide two approaches to set up the complete solution:
+The whole solution is including two parts, Agentic AI platform and Agentic AI application, let us go through the Agentic AI platform firstly 
+
+We provide two approaches to set up the Agentic AI platform:
 
 ### Option 1: Automated Setup with Makefile (Recommended)
 
@@ -54,9 +56,6 @@ For the fastest and most reliable setup, use our automated Makefile:
 ```bash
 # Install all core components (base infrastructure, models, gateway, observability)
 make install
-
-# Or for development setup only (base + models + gateway)
-make dev-setup
 ```
 
 #### Individual Components
@@ -64,11 +63,8 @@ make dev-setup
 # Install specific components as needed
 make setup-base           # Base infrastructure
 make setup-models         # Model hosting services
-make setup-gateway        # LiteLLM proxy gateway
 make setup-observability  # Langfuse monitoring
-make setup-milvus         # Milvus vector database
-make setup-idp            # Intelligent Document Processing
-make setup-rag            # RAG with OpenSearch
+make setup-gateway        # LiteLLM proxy gateway
 ```
 
 #### Utility Commands
@@ -135,29 +131,7 @@ This deploys:
 - Standalone vLLM vision service
 - All necessary Kubernetes resources and configurations
 
-#### Step 4: Deploy Model Gateway
-
-Set up the unified API gateway:
-
-```bash
-cd model-gateway
-chmod +x setup.sh
-./setup.sh
-```
-
-This deploys:
-- LiteLLM proxy deployment
-- Load balancer and ingress configuration
-- Waits for services to be ready before proceeding
-
-**Important**: After deployment, configure LiteLLM:
-1. Access the LiteLLM web interface
-2. Login with username "admin" and password "sk-123456"
-3. Go to "Virtual Keys" on the sidebar and create a new key
-4. Mark "All Team Models" for the models field
-5. Store the generated secret key - you'll need it for the agentic applications
-
-#### Step 5: Set Up Observability
+#### Step 4: Set Up Observability
 
 Deploy monitoring and observability tools:
 
@@ -179,423 +153,484 @@ This installs:
 4. Go to "Tracing" menu and set up tracing
 5. Record the Public Key (PK) and Secret Key (SK) - you'll need these for the agentic applications
 
-#### Step 6: Deploy Agentic Applications
 
-##### Option A: Intelligent Document Processing (IDP)
+#### Step 5: Deploy Model Gateway
 
-Set up the IDP application for automated document analysis:
-
-```bash
-cd agentic-apps/agentic-idp
-
-# Create and configure environment file
-cp .env.example .env
-# Edit .env with your configuration:
-# - LLAMA_VISION_MODEL_KEY=your-litellm-virtual-key (from Step 4)
-# - API_GATEWAY_URL=your-litellm-gateway-url
-# - LANGFUSE_HOST=your-langfuse-endpoint
-# - LANGFUSE_PUBLIC_KEY=your-langfuse-public-key (from Step 5)
-# - LANGFUSE_SECRET_KEY=your-langfuse-secret-key (from Step 5)
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the IDP application
-python agentic_idp.py
-```
-
-##### Option B: RAG with OpenSearch
-
-Set up the RAG application with OpenSearch vector database:
+Set up the unified API gateway:
 
 ```bash
-cd agentic-apps/agentic_rag_opensearch
-
-# Set up OpenSearch cluster
-chmod +x setup-opensearch.sh
-./setup-opensearch.sh
-
-# Create and configure environment file
-cp .env.example .env
-# Edit .env with your configuration:
-# - OPENAI_API_KEY=your-litellm-virtual-key (from Step 4)
-# - OPENAI_BASE_URL=your-model-endpoint-url
-# - LANGFUSE_HOST=your-langfuse-endpoint
-# - LANGFUSE_PUBLIC_KEY=your-langfuse-public-key (from Step 5)
-# - LANGFUSE_SECRET_KEY=your-langfuse-secret-key (from Step 5)
-# Note: OPENSEARCH_ENDPOINT and AWS_REGION are automatically set by setup-opensearch.sh
-
-# Install dependencies
-pnpm install
-
-# Embed knowledge documents
-pnpm embed-knowledge
-
-# Run the multi-agent RAG application
-pnpm dev
+cd model-gateway
+chmod +x setup.sh
+./setup.sh
 ```
 
-## Post-Installation Configuration
+This deploys:
+- LiteLLM proxy deployment
+- Load balancer and ingress configuration
+- Waits for services to be ready before proceeding
 
-After running either installation method, you'll need to configure the following:
-
-### LiteLLM Configuration
+**Important**: After deployment, configure LiteLLM:
 1. Access the LiteLLM web interface
 2. Login with username "admin" and password "sk-123456"
 3. Go to "Virtual Keys" on the sidebar and create a new key
 4. Mark "All Team Models" for the models field
-5. Store the generated secret key for use in agentic applications
+5. Store the generated secret key - you'll need it for the agentic applications
 
-### Langfuse Configuration
-1. Access Langfuse web interface
-2. Create an organization named "test"
-3. Create a project inside it named "demo"
-4. Go to "Tracing" menu and set up tracing
-5. Record the Public Key (PK) and Secret Key (SK) for use in agentic applications
+Right now, let us go through the deployment of an Agentic RAG application based on the Agentic AI platform
 
-## Makefile Reference
+### Deploy Agentic Applications
 
-The Makefile provides comprehensive automation for the entire deployment process. Here's a detailed breakdown of all available targets:
+#### Multi-Agent RAG with Strands SDK and OpenSearch
 
-### Core Installation Targets
+This project implements a sophisticated multi-agent Large Language Model (LLM) system using the **Strands SDK** that combines Model Context Protocol (MCP) for tool usage and Retrieval Augmented Generation (RAG) for enhanced context awareness, using OpenSearch as the vector database.
 
-| Target | Description | Dependencies |
-|--------|-------------|--------------|
-| `make install` | Complete installation of all core components | `verify-cluster`, `setup-base`, `setup-models`, `setup-gateway`, `setup-observability` |
-| `make dev-setup` | Quick development setup (core components only) | `verify-cluster`, `setup-base`, `setup-models`, `setup-gateway` |
+The system is built with a modular multi-agent architecture using Strands SDK patterns with built-in OpenTelemetry tracing:
 
-### Individual Component Targets
-
-| Target | Description | What it installs |
-|--------|-------------|------------------|
-| `make setup-base` | Base infrastructure components | KubeRay Operator, NVIDIA GPU Operator, GP3 storage class, Karpenter node pools |
-| `make setup-models` | Model hosting services | Ray service with LlamaCPP, vLLM reasoning service, vLLM vision service |
-| `make setup-gateway` | Model gateway | LiteLLM proxy deployment, load balancer, ingress configuration |
-| `make setup-observability` | Monitoring and observability | Langfuse for LLM observability, web ingress |
-| `make setup-milvus` | Vector database | Milvus standalone deployment with cert-manager and EBS storage |
-| `make setup-idp` | Intelligent Document Processing | Environment setup and dependency installation |
-| `make setup-rag` | RAG with OpenSearch | OpenSearch cluster setup and Node.js dependencies |
-
-### Utility Targets
-
-| Target | Description | Use case |
-|--------|-------------|----------|
-| `make help` | Show all available targets and prerequisites | Getting started, reference |
-| `make verify-cluster` | Verify EKS cluster access | Troubleshooting, pre-installation check |
-| `make status` | Check deployment status across all namespaces | Monitoring, troubleshooting |
-| `make clean` | Remove all deployments | Cleanup, fresh start |
-| `make setup-function-calling` | Deploy function calling service | Agentic AI with external tool integration |
-| `make setup-benchmark` | Performance benchmarking setup instructions | Performance testing |
-
-### Advanced Features
-
-The Makefile includes several advanced features for better user experience:
-
-- **Sequential Dependencies**: Each target automatically runs its prerequisites
-- **Environment File Management**: Automatically creates `.env` templates with configuration instructions
-- **Error Handling**: Graceful handling of missing files and failed operations
-- **Status Feedback**: Clear progress indicators and next-step instructions
-- **Configuration Reminders**: Important post-deployment configuration steps for LiteLLM and Langfuse
-
-### Example Workflows
-
-#### Complete Setup
-```bash
-# One command to set up everything
-make install
+```
+SupervisorAgent (Orchestrator) [with built-in tracing]
+├── KnowledgeAgent → Manages knowledge base and embeddings [traced]
+├── MCPAgent → Manages tool interactions via MCP protocol [traced]
+└── Strands SDK → Provides agent framework, tool integration, and OpenTelemetry tracing
 ```
 
-#### Development Workflow
-```bash
-# Quick setup for development
-make dev-setup
+#### 🚀 Key Features
 
-# Add specific components as needed
-make setup-milvus
-make setup-idp
+##### Multi-Agent Orchestration
+- **SupervisorAgent**: Main orchestrator with integrated RAG capabilities using Strands SDK
+- **KnowledgeAgent**: Monitors and manages knowledge base changes
+- **MCPAgent**: Executes tasks using MCP tools and file operations
+- **Built-in Tracing**: All agents include OpenTelemetry tracing via Strands SDK
+
+##### Advanced RAG Capabilities
+- **OpenSearch Integration**: Vector storage and similarity search
+- **Embedding Generation**: Configurable embedding models and endpoints
+- **Multi-format Support**: Handles markdown, text, JSON, and CSV files
+- **Intelligent Search**: Vector similarity search with metadata and scoring
+- **Relevance Scoring**: Automatic relevance assessment for search results
+
+##### External Web Search Integration 🌐
+- **Tavily API Integration**: Real-time web search via MCP server
+- **Automatic Triggering**: Web search activated when RAG relevance < 0.3
+- **News Search**: Dedicated recent news and current events search
+- **Hybrid Responses**: Combines knowledge base and web search results
+- **Smart Fallback**: Graceful degradation when web search unavailable
+
+##### MCP Tool Integration
+- **Filesystem Operations**: Read, write, and manage files using Strands tools
+- **Web Search Tools**: Tavily-powered web and news search capabilities
+- **Extensible Architecture**: Easy to add new MCP servers
+- **Error Handling**: Robust tool execution with fallbacks
+- **Built-in Tools**: Integration with Strands built-in tools
+
+##### Observability & Tracing
+- **OpenTelemetry Integration**: Native tracing through Strands SDK
+- **Multiple Export Options**: Console, OTLP endpoints, Jaeger, Langfuse
+- **Automatic Instrumentation**: All agent interactions are automatically traced
+- **Performance Monitoring**: Track execution times, token usage, and tool calls
+
+#### 🏃‍♂️ Usage
+
+##### Option 1: Container Deployment on Kubernetes(Recommended)
+
+For production deployments, use the containerized solution with Kubernetes:
+
+###### Prerequisites
+
+- Python 3.9+
+- EKS cluster
+- TAVILY_API_KEY(https://docs.tavily.com/documentation/quickstart#get-your-free-tavily-api-key)
+- AWS credentials configured
+
+###### Installation
+
+**1. Build and Push Container Images**
+
+```bash
+# Navigate to the strandsdk agentic app directory
+cd agentic-apps/strandsdk_agentic_rag_opensearch
+
+# Build Docker images and push to ECR
+./build-images.sh
+
+# This script will:
+# - Create ECR repositories if they don't exist
+# - Build main application and MCP server images
+# - Push images to ECR
+# - Update Kubernetes deployment files with ECR image URLs
 ```
 
-#### Troubleshooting
+**2. Deploy OpenSearch Cluster**
+
 ```bash
-# Check cluster connectivity
-make verify-cluster
+# Deploy OpenSearch with CloudFormation and EKS Pod Identity
+./deploy-opensearch.sh [stack-name] [region] [namespace]
+
+# Example:
+./deploy-opensearch.sh strandsdk-rag-opensearch-stack us-east-1 default
+
+# This script will:
+# - Deploy OpenSearch cluster via CloudFormation
+# - Set up EKS Pod Identity for secure access
+# - Create the vector index automatically
+# - Configure IAM roles and policies
+```
+
+**3. Configure Kubernetes Secrets and ConfigMap**
+
+Update the ConfigMap with your actual service endpoints and configuration:
+
+```bash
+# Apply the ConfigMap and Secrets
+kubectl apply -f k8s/configmap.yaml
+# Edit the ConfigMap with your actual values
+kubectl edit configmap app-config
+
+# Key values to update:
+# - LITELLM_BASE_URL: Your LiteLLM service endpoint
+# - EMBEDDING_BASE_URL: Your embedding service endpoint  
+# - OPENSEARCH_ENDPOINT: From OpenSearch deployment output
+# - LANGFUSE_HOST: Your Langfuse instance (optional)
+```
+
+Update secrets with your API keys:
+
+```bash
+# Update secrets with base64 encoded values
+kubectl edit secret app-secrets
+
+# To encode your keys:
+echo -n "your-api-key" | base64
+
+# Keys to update:
+# - litellm-api-key: Your LiteLLM API key
+# - embedding-api-key: Your embedding service API key
+# - tavily-api-key: Your Tavily API key for web search
+# - langfuse-public-key: Langfuse public key (optional)
+# - langfuse-secret-key: Langfuse secret key (optional)
+```
+
+**4. Deploy Kubernetes Applications**
+
+```bash
+# Apply the service account (if not already created)
+kubectl apply -f k8s/service-account.yaml
+
+# Deploy the MCP server first
+kubectl apply -f k8s/tavily-mcp-deployment.yaml
+
+# Deploy the main application
+kubectl apply -f k8s/main-app-deployment.yaml
 
 # Check deployment status
-make status
+kubectl get pods -l app=tavily-mcp-server
+kubectl get pods -l app=strandsdk-rag-app
 
-# Clean up and start fresh
-make clean
-make install
-```
-
-#### Component-by-Component Setup
-```bash
-# Install components individually with full control
-make setup-base
-make setup-models
-make setup-gateway
-make setup-observability
-```
-
-## Detailed Component Information
-
-## Deployment Options
-
-### Option 1: CPU-based Inference with llama.cpp on Graviton
-
-Deploy an elastic Ray service hosting llama 3.2 model on Graviton:
-
-#### 1. Edit your Hugging Face token for env `HUGGING_FACE_HUB_TOKEN` in the secret section of `ray-service-llamacpp-with-function-calling.yaml`
-
-#### 2. Configure model and inference parameters in the yaml file:
-   - `MODEL_ID`: Hugging Face model repository
-   - `MODEL_FILENAME`: Model file name in the Hugging Face repo
-   - `N_THREADS`: Number of threads for inference (recommended: match host EC2 instance vCPU count)
-   - `CMAKE_ARGS`: C/C++ compile flags for llama.cpp on Graviton
-
-> Note: The example model uses GGUF format, optimized for llama.cpp. See [GGUF documentation](https://huggingface.co/docs/hub/en/gguf) for details. You can find out different quantization version for the model, check these hugging face repo: https://huggingface.co/bartowski or https://huggingface.co/unsloth  
-> Note: To run function call, better with reasoning model like Qwen-QwQ-32B in this example
-
-#### 3. Create the Kubernetes service:
-```bash
-kubectl create -f ray-service-llamacpp-with-function-calling.yaml
-```
-
-#### 4. Get the Kubernetes service name:
-```bash
+# Check services and ingress
 kubectl get svc
+kubectl get ingress
 ```
 
-### Option 2: GPU-based Inference with vLLM
-
-Deploy an elastic Ray service hosting models on GPU instances using vLLM:
-
-#### 1. Edit your Hugging Face token for env `HUGGING_FACE_HUB_TOKEN` in the secret section of `ray-service-vllm-with-function-calling.yaml`
-
-#### 2. Configure model and inference parameters in the yaml file:
-   - `MODEL_ID`: Hugging Face model repository (default: mistralai/Mistral-7B-Instruct-v0.2)
-   - `GPU_MEMORY_UTILIZATION`: Percentage of GPU memory to utilize (default: 0.9)
-   - `MAX_MODEL_LEN`: Maximum sequence length for the model (default: 8192)
-   - `MAX_NUM_SEQ`: Maximum number of sequences to process in parallel (default: 4)
-   - `MAX_NUM_BATCHED_TOKENS`: Maximum number of tokens in a batch (default: 32768)
-   - `ENABLE_FUNCTION_CALLING`: Set to "true" to enable function calling support
-
-#### 3. Create the Kubernetes service:
-```bash
-kubectl create namespace rayserve-vllm
-kubectl create -f ray-service-vllm-with-function-calling.yaml
-```
-
-#### 4. Get the Kubernetes service name:
-```bash
-kubectl get svc -n rayserve-vllm
-```
-
-## Agentic AI with Function Calling
-
-This solution supports building agentic AI applications that can leverage either CPU-based (llama.cpp) or GPU-based (vLLM) model inference backends. The agent architecture enables models to call external functions and services.
-
-### Understanding Agentic AI and Function Calling
-
-Agentic AI refers to AI systems that can act autonomously to achieve specific goals by making decisions and taking actions. In this solution, we implement agentic capabilities through function calling, which allows language models to:
-
-1. **Recognize when to use tools**: The model identifies when external data or capabilities are needed to fulfill a user request
-2. **Structure function calls**: The model generates properly formatted function calls with appropriate parameters
-3. **Process function results**: The model incorporates returned data into its responses
-
-Function calling enables models to bridge the gap between natural language understanding and external systems, allowing them to:
-
-- Access real-time information (like weather data in our example)
-- Perform calculations or data transformations
-- Interact with external APIs and services
-- Execute specific actions based on user requests
-
-Our implementation provides a framework where the model:
-- Parses user intent from natural language
-- Determines which function to call and with what parameters
-- Makes the API call through a dedicated service
-- Processes the returned information to generate a coherent response
-
-This approach significantly extends the capabilities of language models beyond their pre-trained knowledge, making them more useful for real-world applications.
-
-### Deploying the Function Service
-
-#### 1. Configure the function service:
-The function service is defined in `agent/kubernetes/combined.yaml` and includes:
-- A Kubernetes Secret for API credentials
-- A Deployment for the function service (weather service example)
-- A LoadBalancer Service to expose the function API
-
-#### 2. Deploy the function service:
-```bash
-kubectl apply -f agent/kubernetes/combined.yaml
-```
-
-#### 3. Configure your model backend for function calling:
-- For CPU-based inference: Use `ray-service-llamacpp-with-function-calling.yaml`
-- For GPU-based inference: Use `ray-service-vllm-with-function-calling.yaml` with `ENABLE_FUNCTION_CALLING: "true"`
-
-#### 4. Test function calling:
-Once deployed, you can test the weather function service using a simple curl command:
+**5. Test the Deployed System**
 
 ```bash
-curl -X POST http://<YOUR-LOAD-BALANCER-URL>/chat \
+# Get the Application Load Balancer endpoint
+ALB_ENDPOINT=$(kubectl get ingress strandsdk-rag-ingress-alb -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+
+# Test the health endpoint
+curl -X GET "http://${ALB_ENDPOINT}/health"
+
+# Test a simple query
+curl -X POST "http://${ALB_ENDPOINT}/query" \
   -H "Content-Type: application/json" \
-  -d '{"message": "What is the current weather in London?"}'
-```
-```bash
-curl -X POST http://<YOUR-LOAD-BALANCER-URL>/chat \
+  -d '{
+    "query": "What is Bell'\''s palsy?",
+    "include_web_search": true
+  }'
+
+# Test knowledge embedding
+curl -X POST "http://${ALB_ENDPOINT}/embed-knowledge" \
+  -H "Content-Type: application/json"
+
+# Test with a more complex medical query
+curl -X POST "http://${ALB_ENDPOINT}/query" \
   -H "Content-Type: application/json" \
-  -d '{"message": "What is the future 2 days weather in London?"}'
+  -d '{
+    "question": "Find information about \"What was the purpose of the study on encainide and flecainide in patients with supraventricular arrhythmias\". Summarize this information and create a comprehensive story.Save the story and important information to a file named \"test1.md\" in the output directory as a beautiful markdown file.",
+    "top_k": 3
+  }' \
+  --max-time 600
 ```
 
-The service will:
-1. Process your natural language query
-2. Identify the need to call the weather function
-3. Make the appropriate API call
-4. Return the weather information in a conversational format
+##### Option 2: Local Development
 
-## Installing Milvus Vector Database in EKS
+###### Prerequisites
 
-Milvus is an open-source vector database that powers embedding similarity search and AI applications. This section guides you through deploying Milvus on your EKS cluster with Graviton processors.
+- Python 3.9+
+- EKS cluster
+- TAVILY_API_KEY
+- Public facing Opensearch cluster
+- AWS credentials configured
 
-### Prerequisites
-
-- Your EKS cluster is already set up with Graviton (ARM64) nodes
-- Cert-manager is installed on the cluster
-- AWS EBS CSI driver is configured for persistent storage
-
-### Deployment Steps
-
-#### 1. Install cert-manager (if not already installed):
-```bash
-kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.5.3/cert-manager.yaml
-kubectl get pods -n cert-manager
-```
-
-#### 2. Install Milvus Operator:
-```bash
-kubectl apply -f https://raw.githubusercontent.com/zilliztech/milvus-operator/main/deploy/manifests/deployment.yaml
-kubectl get pods -n milvus-operator
-```
-
-#### 3. Create EBS Storage Class:
-```bash
-kubectl apply -f milvus/ebs-storage-class.yaml
-```
-
-#### 4. Deploy Milvus in standalone mode:
-```bash
-kubectl apply -f milvus/milvus-standalone.yaml
-```
-
-#### 5. Create Network Load Balancer Service (optional, for external access):
-```bash
-kubectl apply -f milvus/milvus-nlb-service.yaml
-```
-
-#### 6. Access Milvus:
-You can access Milvus using port-forwarding:
-```bash
-kubectl port-forward service/my-release-milvus 19530:19530
-```
-
-Or through the Network Load Balancer if you deployed the NLB service.
-
-## Deploying MCP (Model Context Protocol) Service
-
-The MCP service enables augmented LLM capabilities by combining tool usage with Retrieval Augmented Generation (RAG) for enhanced context awareness. This implementation is framework-independent, not relying on LangChain or LlamaIndex.
-
-### Architecture
-
-The MCP service consists of several modular components:
-- **Agent**: Coordinates workflow and manages tool usage
-- **ChatOpenAI**: Handles interactions with the language model and tool calling
-- **MCPClient**: Connects to MCP servers and manages tool calls
-- **EmbeddingRetriever**: Creates and searches vector embeddings for relevant context
-- **VectorStore**: Interfaces with Milvus for storing and retrieving embeddings
-
-### Workflow
-
-1. **Knowledge Embedding**
-   - Documents from the `knowledge` directory are converted to vector embeddings
-   - Embeddings and source documents are stored in Milvus vector database
-
-2. **Context Retrieval (RAG)**
-   - User queries are converted to embeddings
-   - The system finds relevant documents by calculating similarity between embeddings
-   - Top matching documents form context for the LLM
-
-3. **MCP Tool Setup**
-   - MCP clients connect to tool servers (e.g., filesystem operations)
-   - Tools are registered with the agent
-
-4. **Task Execution**
-   - User tasks are processed by the LLM with retrieved context
-   - The LLM may use tools via MCP clients
-   - Tool results are fed back to the LLM to continue the conversation
-
-### Deployment Steps
-
-#### 1. Set up environment variables:
-Create a `.env` file in the `mcp` directory with:
-```
-OPENAI_API_KEY=your_openai_api_key
-OPENAI_BASE_URL=your_openai_model_inference_endpoint
-EMBEDDING_BASE_URL=https://bedrock-runtime.us-west-2.amazonaws.com
-EMBEDDING_KEY=not_needed_for_aws_credentials
-AWS_REGION=us-west-2
-MILVUS_ADDRESS=your_milvus_service_address
-```
-
-#### 2. Install dependencies:
-```bash
-cd mcp
-pnpm install
-```
-
-#### 3. Run the application:
-```bash
-pnpm dev
-```
-
-#### 4. Extend the system:
-This modular architecture can be extended by:
-- Adding more MCP servers for additional tool capabilities
-- Implementing advanced Milvus features like filtering and hybrid search
-- Adding more sophisticated RAG techniques
-- Implementing conversation history for multi-turn interactions
-- Deploying as a service with API endpoints
-
-## Performance Benchmarking
-
-Our client program will generate prompts with different concurrency for each run. Every run will have common GenAI related prompts and assemble them into standard HTTP requests, and concurrency calls will keep increasing until the maximum CPU usage reaches to nearly 100%. We capture the total time from when a HTTP request is initiated to when a HTTP response is received as the latency metric of model performance. We also capture output token generated per second as throughput. The test aims to reach maximum CPU utilization on the worker pods to assess the concurrency performance.
-
-Follow this guidance if you want to set it up and replicate the experiment
-
-### 1. Launch load generator instance
-Launch an EC2 instance as the client in the same AZ with the Ray cluster (For optimal performance testing, deploy a client EC2 instance in the same AZ as your Ray cluster. To generate sufficient load, use a compute-optimized instance like c6i.16xlarge. If you observe that worker node CPU utilization remains flat despite increasing concurrent requests, this indicates your test client may be reaching its capacity limits. In such cases, scale your testing infrastructure by launching additional EC2 instances to generate higher concurrent loads.)
-
-### 2. Execute port forward for the ray service
-```bash
-kubectl port-forward service/ray-service-llamacpp-serve-svc 8000:8000
-```
-
-### 3. Configure environment
-Install Golang environment in the client EC2 instance (please refer [this](https://go.dev/doc/install) for the Golang installation guidance). Specify the environment variables as the test configuration.
+###### Installation
 
 ```bash
-export URL=http://localhost:8000/v1/chat/completions
-export REQUESTS_PER_PROMPT=<The_number_of_concurrent_calls>
-export NUM_WARMUP_REQUESTS=<The_number_of_warmup_requests>
+# Navigate to the strandsdk agentic app directory
+cd agentic-apps/strandsdk_agentic_rag_opensearch
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Set up environment variables
+cp .env.example .env
+# Edit .env with your configuration
 ```
 
-### 4. Run test
-Run the performance test golang script and you can find the results from the output.
+###### Configuration
+
+Create a `.env` file with the following variables:
+
+```env
+# OpenAI Configuration
+OPENAI_API_KEY=your-openai-api-key
+OPENAI_BASE_URL=https://api.openai.com/v1
+DEFAULT_MODEL=us.anthropic.claude-3-7-sonnet-20250219-v1:0
+
+# AWS Configuration  
+AWS_REGION=us-east-1
+OPENSEARCH_ENDPOINT=https://your-opensearch-domain.region.es.amazonaws.com
+
+# Tavily Web Search Configuration
+TAVILY_API_KEY=your-tavily-api-key
+
+# Tracing Configuration (Optional)
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+OTEL_EXPORTER_OTLP_HEADERS=key1=value1,key2=value2
+STRANDS_OTEL_ENABLE_CONSOLE_EXPORT=true
+
+# Optional: Langfuse for observability
+LANGFUSE_HOST=https://cloud.langfuse.com
+LANGFUSE_PUBLIC_KEY=your-public-key
+LANGFUSE_SECRET_KEY=your-secret-key
+
+# Application Settings
+KNOWLEDGE_DIR=knowledge
+OUTPUT_DIR=output
+VECTOR_INDEX_NAME=knowledge-embeddings
+TOP_K_RESULTS=5
+```
+
+###### Deploy
+
+**1. Start Tavily MCP Server (for Web Search)**
 
 ```bash
-go run perf_benchmark.go
+# Start the Tavily web search server
+python scripts/start_tavily_server.py
+
+# Or run directly
+python src/mcp_servers/tavily_search_server.py
 ```
 
-## Contact
-Please contact wangaws@ or fmamazon@ if you want to know more and/or contribute.
+**2. Embed Knowledge Documents**
+
+```bash
+# Process and embed all knowledge documents
+python -c "from src.agents.knowledge_agent import knowledge_agent; print(knowledge_agent('Please embed all knowledge files'))"
+```
+
+**3. Run the Multi-Agent System**
+
+```bash
+# Standard mode (with built-in tracing)
+source venv/bin/activate
+python -m src.main
+
+# Clean mode (async warnings suppressed)
+python run_main_clean.py
+
+# Single query - standard mode
+python -c "from src.main import run_single_query; print(run_single_query('What is Bell\'s palsy?'))"
+
+# Single query - clean mode
+python run_single_query_clean.py "What is Bell's palsy?"
+
+# Single query - ultra clean mode (completely suppressed stderr)
+python run_completely_clean.py "What is Bell's palsy?"
+```
+
+**4. Test the System**
+
+```bash
+# Run comprehensive tests including web search integration
+python -m src.test_agents
+
+# Test the enhanced RAG system with chunk relevance evaluation
+python test_enhanced_rag.py
+
+# Test web search integration specifically
+python src/test_web_search_integration.py
+
+# Run tests with clean output (async warnings filtered)
+python run_clean_test.py
+```
+
+**Note**: The enhanced system uses RAGAs for chunk relevance evaluation, which may generate harmless async cleanup warnings. Use `run_clean_test.py` for a cleaner testing experience.
+
+
+##### Container Features
+
+- **Auto-scaling**: Kubernetes HPA for dynamic scaling
+- **Health Checks**: Built-in health endpoints for monitoring
+- **Service Discovery**: Internal service communication via Kubernetes DNS
+- **Security**: EKS Pod Identity for secure AWS service access
+- **Observability**: OpenTelemetry tracing with multiple export options
+- **Load Balancing**: ALB for external traffic distribution
+- **Configuration Management**: ConfigMaps and Secrets for environment-specific settings
+
+#### 🔍 Observability & Tracing
+
+The system includes comprehensive observability through Strands SDK's built-in OpenTelemetry integration:
+
+##### Automatic Tracing
+- **All agents** are automatically traced using Strands SDK
+- **Tool calls**, **LLM interactions**, and **workflows** are captured
+- **Performance metrics** including token usage and execution times
+
+##### Trace Export Options
+- **Console Output**: Set `STRANDS_OTEL_ENABLE_CONSOLE_EXPORT=true` for development
+- **OTLP Endpoint**: Configure `OTEL_EXPORTER_OTLP_ENDPOINT` for production
+- **Langfuse**: Use Langfuse credentials for advanced observability
+- **Jaeger/Zipkin**: Compatible with standard OpenTelemetry collectors
+
+##### Local Development Setup
+```bash
+# Pull and run Jaeger all-in-one container
+docker run -d --name jaeger \
+  -e COLLECTOR_OTLP_ENABLED=true \
+  -p 16686:16686 \
+  -p 4317:4317 \
+  -p 4318:4318 \
+  jaegertracing/all-in-one:latest
+
+# Access Jaeger UI at http://localhost:16686
+```
+
+#### 🧠 Agent Workflows
+
+##### Knowledge Management Workflow
+1. **File Monitoring**: Scans knowledge directory for changes
+2. **Change Detection**: Uses file hashes and timestamps
+3. **Document Processing**: Handles multiple file formats
+4. **Embedding Generation**: Creates vector embeddings
+5. **Vector Storage**: Stores in OpenSearch with metadata
+
+##### RAG Retrieval Workflow  
+1. **Query Processing**: Analyzes user queries
+2. **Embedding Generation**: Converts queries to vectors
+3. **Similarity Search**: Finds relevant documents in OpenSearch
+4. **Context Formatting**: Structures results for LLM consumption
+5. **Relevance Ranking**: Orders results by similarity scores
+
+##### MCP Tool Execution Workflow
+1. **Tool Discovery**: Connects to available MCP servers
+2. **Context Integration**: Combines RAG context with user queries
+3. **Tool Selection**: Chooses appropriate tools for tasks
+4. **Execution Management**: Handles tool calls and responses
+5. **Result Processing**: Formats and returns final outputs
+
+#### 🔧 Extending the System
+
+##### Adding New Agents
+
+```python
+from strands import Agent, tool
+from src.utils.strands_langfuse_integration import create_traced_agent
+
+# Define tools for the agent
+@tool
+def my_custom_tool(param: str) -> str:
+    """Custom tool implementation."""
+    return f"Processed: {param}"
+
+# Create the agent with built-in tracing
+my_agent = create_traced_agent(
+    Agent,
+    model="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+    tools=[my_custom_tool],
+    system_prompt="Your specialized prompt here",
+    session_id="my-agent-session",
+    user_id="system"
+)
+```
+
+##### Adding New MCP Servers
+
+```python
+from fastmcp import FastMCP
+
+mcp = FastMCP("My Custom Server")
+
+@mcp.tool(description="Custom tool description")
+def my_custom_tool(param: str) -> str:
+    """Custom tool implementation."""
+    return f"Processed: {param}"
+
+if __name__ == "__main__":
+    mcp.run(transport="streamable-http", port=8002)
+```
+
+#### 📊 Monitoring and Observability
+
+The system includes comprehensive observability features:
+
+- **OpenTelemetry Integration**: Native tracing through Strands SDK
+- **Multiple Export Options**: Console, OTLP endpoints, Jaeger, Langfuse
+- **Workflow Summaries**: Detailed execution reports
+- **Performance Metrics**: Duration and success tracking
+- **Error Handling**: Comprehensive error reporting and recovery
+
+#### 🧪 Example Use Cases
+
+##### Medical Knowledge Query
+```python
+query = "What are the symptoms and treatment options for Bell's palsy?"
+result = supervisor_agent(query)
+print(result['response'])
+```
+
+##### Document Analysis and Report Generation
+```python
+query = "Analyze the medical documents and create a summary report saved to a file"
+result = supervisor_agent(query)
+# System will retrieve relevant docs, analyze them, and save results using MCP tools
+```
+
+#### 🔍 Architecture Benefits
+
+1. **Modularity**: Each agent has specific responsibilities
+2. **Scalability**: Agents can be scaled independently  
+3. **Reliability**: Isolated failures don't affect the entire system
+4. **Extensibility**: Easy to add new capabilities
+5. **Observability**: Comprehensive monitoring and tracing via Strands SDK
+6. **Standards Compliance**: Uses MCP for tool integration and OpenTelemetry for tracing
+
+#### 🔧 Key Improvements
+
+##### Unified Architecture
+- **Single Codebase**: No separate "enhanced" versions - all functionality is built into the standard agents
+- **Built-in Tracing**: OpenTelemetry tracing is automatically enabled through Strands SDK
+- **Simplified Deployment**: One main application with all features included
+- **Consistent API**: All agents use the same tracing and configuration patterns
+
+##### Enhanced Developer Experience
+- **Automatic Instrumentation**: No manual trace management required
+- **Multiple Export Options**: Console, OTLP, Jaeger, Langfuse support out of the box
+- **Environment-based Configuration**: Easy setup through environment variables
+- **Clean Code Structure**: Removed duplicate wrapper functions and complex manual tracing
+- **Async Warning Management**: Clean test runner filters harmless async cleanup warnings
+- **Robust Error Handling**: Fallback mechanisms ensure system reliability
+

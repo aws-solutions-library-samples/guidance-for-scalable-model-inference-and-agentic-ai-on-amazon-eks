@@ -21,10 +21,6 @@ spec:
         group: karpenter.k8s.aws
         kind: EC2NodeClass
         name: graviton-inference
-      taints:
-        - key: "model-inferencing"
-          value: "graviton-inference"
-          effect: NoSchedule
       expireAfter: 8h
       requirements:
         - key: karpenter.k8s.aws/instance-category
@@ -60,19 +56,19 @@ spec:
   subnetSelectorTerms:
     - tags:
         Environment: dev
-        Name: wre-dev-private-*
-        karpenter.sh/discovery: wre-dev
+        Name: ${CLUSTER_NAME}-private-*
+        karpenter.sh/discovery: ${CLUSTER_NAME}
   securityGroupSelectorTerms:
     - tags:
         Environment: dev
-        karpenter.sh/discovery: wre-dev
+        karpenter.sh/discovery: ${CLUSTER_NAME}
   amiFamily: "AL2023"
   amiSelectorTerms:
     - name: "amazon-eks-node-al2023-arm64-standard-1.29-*"
-  role: KarpenterNode-wre-dev
+  role: KarpenterNode-${CLUSTER_NAME}
   tags:
     Environment: dev
-    karpenter.sh/discovery: wre-dev
+    karpenter.sh/discovery: ${CLUSTER_NAME}
     model-inferencing: "graviton-inference"
     ray-control-plane: "false"
     Provisioned-By: aws-solutions-library-samples/guidance-for-automated-provisioning-of-application-ready-amazon-eks-clusters

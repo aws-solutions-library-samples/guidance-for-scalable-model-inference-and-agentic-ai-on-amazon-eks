@@ -29,6 +29,9 @@ class Config:
     AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
     OPENSEARCH_ENDPOINT: str = os.getenv("OPENSEARCH_ENDPOINT", "")
     
+    # Tavily MCP Configuration
+    TAVILY_MCP_SERVICE_URL: str = os.getenv("TAVILY_MCP_SERVICE_URL", "http://localhost:8001/mcp")
+    
     # Langfuse Configuration
     LANGFUSE_HOST: str = os.getenv("LANGFUSE_HOST", "")
     LANGFUSE_PUBLIC_KEY: str = os.getenv("LANGFUSE_PUBLIC_KEY", "")

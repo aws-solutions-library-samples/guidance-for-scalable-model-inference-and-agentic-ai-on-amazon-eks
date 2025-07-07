@@ -33,6 +33,12 @@ env/
 .env/
 ENV/
 
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
 # Editor directories and files
 .idea/
 .vscode/
@@ -53,6 +59,8 @@ Thumbs.db
 agentic-apps/agentic_rag_opensearch/pnpm-lock.yaml
 agentic-apps/agentic_rag_opensearch/.knowledge-metadata.json
 
-# Agentic apps output and cache directories
+# Agentic apps output directories
 agentic-apps/strandsdk_agentic_rag_opensearch/output/
-agentic-apps/strandsdk_agentic_rag_opensearch/src/__pycache__/
+# Local backup files with real secrets
+**/*.bak
+**/configmap.yaml.bak

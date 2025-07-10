@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Secret
 metadata:
-  name: hf_token
+  name: hf-token
 stringData:
   token: HUGGING_FACE_TOKEN_HERE
   llm_api_key: sk-1234
@@ -225,12 +225,12 @@ spec:
             - name: HUGGING_FACE_HUB_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: hf_token
+                  name: hf-token
                   key: token
             - name: LLM_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: hf_token
+                  name: hf-token
                   key: llm_api_key
             - name: RAY_enable_autoscaler_v2
               value: "1"
@@ -272,12 +272,12 @@ spec:
             - name: HUGGING_FACE_HUB_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: hf_token
+                  name: hf-token
                   key: token
             - name: LLM_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: hf_token
+                  name: hf-token
                   key: llm_api_key
             - name: CMAKE_ARGS
               value: "-DCMAKE_CXX_FLAGS=-fopenmp"  

@@ -16,15 +16,12 @@ spec:
       labels:
         model-inferencing: "gpu-inference"
         ray-control-plane: "false"
+        nvidia.com/gpu: "present"
     spec:
       nodeClassRef:
         group: karpenter.k8s.aws
         kind: EC2NodeClass
         name: gpu-inference
-      taints:
-        - key: "model-inferencing"
-          value: "gpu-inference"
-          effect: NoSchedule
       expireAfter: 8h
       requirements:
         - key: karpenter.k8s.aws/instance-category
@@ -48,7 +45,7 @@ spec:
           values: ["nvidia"]
         - key: karpenter.k8s.aws/instance-gpu-count
           operator: In
-          values: ["1", "2", "4"]
+          values: ["4"]
 ---
 apiVersion: karpenter.k8s.aws/v1
 kind: EC2NodeClass
@@ -72,7 +69,7 @@ spec:
         karpenter.sh/discovery: ${CLUSTER_NAME}
   amiFamily: "AL2023"
   amiSelectorTerms:
-    - name: "amazon-eks-gpu-node-1.29-v*"
+    - name: "amazon-eks-node-al2023-x86_64-nvidia-1.33-v*"
   role: KarpenterNode-${CLUSTER_NAME}
   tags:
     Environment: dev

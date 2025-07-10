@@ -3,6 +3,21 @@
 # Build script for separate Docker images with ECR integration and automatic Kubernetes manifest updates
 set -e
 
+# Detect OS and set sed command for cross-platform compatibility
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS (BSD sed)
+    SED_INPLACE() { sed -i "" "$@"; }
+    OS_NAME="macOS"
+else
+    # Linux (GNU sed)
+    SED_INPLACE() { sed -i "$@"; }
+    OS_NAME="Linux"
+fi
+
+echo "Detected OS: ${OS_NAME}"
+echo "Using appropriate sed syntax for cross-platform compatibility"
+echo ""
+
 # Configuration
 AWS_REGION="us-east-1"  # Change to your preferred region
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -85,7 +100,7 @@ echo "Updating Kubernetes deployment files with ECR image URLs..."
 
 # Update main app deployment
 if [ -f "k8s/main-app-deployment.yaml" ]; then
-    sed -i "s|image: .*strandsdk-agentic-rag-main:.*|image: ${ECR_REGISTRY}/${MAIN_REPO_NAME}:${TAG}|g" k8s/main-app-deployment.yaml
+    SED_INPLACE "s|image: .*strandsdk-agentic-rag-main:.*|image: ${ECR_REGISTRY}/${MAIN_REPO_NAME}:${TAG}|g" k8s/main-app-deployment.yaml
     echo "✅ Updated main-app-deployment.yaml with ECR image URL"
 else
     echo "⚠️  k8s/main-app-deployment.yaml not found"
@@ -93,7 +108,7 @@ fi
 
 # Update MCP server deployment
 if [ -f "k8s/tavily-mcp-deployment.yaml" ]; then
-    sed -i "s|image: .*strandsdk-agentic-rag-mcp:.*|image: ${ECR_REGISTRY}/${MCP_REPO_NAME}:${TAG}|g" k8s/tavily-mcp-deployment.yaml
+    SED_INPLACE "s|image: .*strandsdk-agentic-rag-mcp:.*|image: ${ECR_REGISTRY}/${MCP_REPO_NAME}:${TAG}|g" k8s/tavily-mcp-deployment.yaml
     echo "✅ Updated tavily-mcp-deployment.yaml with ECR image URL"
 else
     echo "⚠️  k8s/tavily-mcp-deployment.yaml not found"

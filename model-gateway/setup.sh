@@ -34,35 +34,145 @@ collect_langfuse_config() {
   log "Configuring Langfuse integration..."
   
   echo ""
-  echo "Please provide your Langfuse configuration details:"
+  echo "=============================================================================="
+  echo "                        LANGFUSE CONFIGURATION REQUIRED"
+  echo "=============================================================================="
   echo ""
   
-  # Prompt for Langfuse Host
+  # Auto-detect Langfuse deployment in cluster
+  log "Checking for Langfuse deployment in your cluster..."
+  
+  LANGFUSE_SERVICE=$(kubectl get svc -l app.kubernetes.io/name=langfuse --no-headers 2>/dev/null | grep langfuse-web | head -1)
+  DETECTED_LANGFUSE_HOST=""
+  
+  if [ -n "$LANGFUSE_SERVICE" ]; then
+    success "Found Langfuse web service in your cluster!"
+    kubectl get svc langfuse-web
+    echo ""
+    
+    # Check for ingress first (more likely to be externally accessible)
+    LANGFUSE_INGRESS_HOST=$(kubectl get ingress langfuse-web-ingress-alb -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+    if [ -n "$LANGFUSE_INGRESS_HOST" ]; then
+      DETECTED_LANGFUSE_HOST="http://$LANGFUSE_INGRESS_HOST"
+      success "Detected Langfuse Host URL (via ingress): $DETECTED_LANGFUSE_HOST"
+    fi
+    
+    # Check for LoadBalancer service as alternative (handle errors gracefully)
+    LANGFUSE_LB=$(kubectl get svc -l app.kubernetes.io/name=langfuse,type=LoadBalancer -o jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+    if [ -n "$LANGFUSE_LB" ]; then
+      if [ -z "$DETECTED_LANGFUSE_HOST" ]; then
+        DETECTED_LANGFUSE_HOST="http://$LANGFUSE_LB"
+      fi
+      log "Alternative Langfuse URL (via LoadBalancer): http://$LANGFUSE_LB"
+    fi
+    
+    if [ -z "$DETECTED_LANGFUSE_HOST" ]; then
+      warn "Langfuse service found but no external access configured."
+      log "You may need to set up port-forwarding: kubectl port-forward svc/langfuse-web 3000:3000"
+    fi
+  else
+    warn "No Langfuse service found in your cluster."
+    log "Please deploy Langfuse first using: make setup-observability"
+  fi
+  
+  echo ""
+  echo "SETUP INSTRUCTIONS:"
+  echo "1. 🌐 ACCESS LANGFUSE:"
+  if [ -n "$DETECTED_LANGFUSE_HOST" ]; then
+    echo "   Open your browser and go to: $DETECTED_LANGFUSE_HOST"
+  else
+    echo "   Use your Langfuse URL (e.g., https://cloud.langfuse.com)"
+    echo "   Or set up port-forwarding: kubectl port-forward svc/langfuse-web 3000:3000"
+    echo "   Then access: http://localhost:3000"
+  fi
+  echo ""
+  echo "2. 🏢 CREATE ORGANIZATION: Name it 'test'"
+  echo "3. 📁 CREATE PROJECT: Name it 'demo' inside the organization"
+  echo "4. 🔑 GET API KEYS: Go to Settings → API Keys → Create new API key"
+  echo "   - Copy the Public Key (starts with 'pk-')"
+  echo "   - Copy the Secret Key (starts with 'sk-')"
+  echo ""
+  echo "=============================================================================="
+  echo ""
+  
+  # Prompt for Langfuse Host with auto-detected default
   while [ -z "$LANGFUSE_HOST" ]; do
-    read -p "Enter Langfuse Host URL (e.g., https://cloud.langfuse.com): " LANGFUSE_HOST
+    if [ -n "$DETECTED_LANGFUSE_HOST" ]; then
+      echo "Enter your Langfuse Host URL (press Enter to use detected URL):"
+      echo "Detected: $DETECTED_LANGFUSE_HOST"
+      echo ""
+      read -p "Langfuse Host URL [$DETECTED_LANGFUSE_HOST]: " LANGFUSE_HOST
+      
+      # Use detected URL if nothing entered
+      if [ -z "$LANGFUSE_HOST" ]; then
+        LANGFUSE_HOST="$DETECTED_LANGFUSE_HOST"
+      fi
+    else
+      echo "Enter your Langfuse Host URL:"
+      echo "Examples:"
+      echo "  - For Langfuse Cloud: https://cloud.langfuse.com"
+      echo "  - For self-hosted: http://your-langfuse-loadbalancer.region.elb.amazonaws.com"
+      echo "  - For port-forwarding: http://localhost:3000"
+      echo ""
+      read -p "Langfuse Host URL: " LANGFUSE_HOST
+    fi
+    
     if [ -z "$LANGFUSE_HOST" ]; then
       warn "Langfuse Host URL cannot be empty. Please try again."
+    elif [[ ! "$LANGFUSE_HOST" =~ ^https?:// ]]; then
+      warn "Please include http:// or https:// in the URL."
+      LANGFUSE_HOST=""
     fi
   done
   
-  # Prompt for Langfuse Public Key
+  # Prompt for Langfuse Public Key with validation
   while [ -z "$LANGFUSE_PUBLIC_KEY" ]; do
-    read -p "Enter Langfuse Public Key: " LANGFUSE_PUBLIC_KEY
+    echo ""
+    echo "Enter your Langfuse Public Key:"
+    echo "  - Should start with 'pk-'"
+    echo "  - Found in Langfuse Settings → API Keys"
+    echo ""
+    read -p "Langfuse Public Key: " LANGFUSE_PUBLIC_KEY
+    
     if [ -z "$LANGFUSE_PUBLIC_KEY" ]; then
       warn "Langfuse Public Key cannot be empty. Please try again."
+    elif [[ ! "$LANGFUSE_PUBLIC_KEY" =~ ^pk- ]]; then
+      warn "Public Key should start with 'pk-'. Please check and try again."
+      LANGFUSE_PUBLIC_KEY=""
     fi
   done
   
-  # Prompt for Langfuse Secret Key (hidden input)
+  # Prompt for Langfuse Secret Key with validation
   while [ -z "$LANGFUSE_SECRET_KEY" ]; do
-    read -s -p "Enter Langfuse Secret Key (input will be hidden): " LANGFUSE_SECRET_KEY
     echo ""
+    echo "Enter your Langfuse Secret Key:"
+    echo "  - Should start with 'sk-'"
+    echo "  - Found in Langfuse Settings → API Keys"
+    echo "  - Input will be hidden for security"
+    echo ""
+    read -s -p "Langfuse Secret Key: " LANGFUSE_SECRET_KEY
+    echo ""
+    
     if [ -z "$LANGFUSE_SECRET_KEY" ]; then
       warn "Langfuse Secret Key cannot be empty. Please try again."
+    elif [[ ! "$LANGFUSE_SECRET_KEY" =~ ^sk- ]]; then
+      warn "Secret Key should start with 'sk-'. Please check and try again."
+      LANGFUSE_SECRET_KEY=""
     fi
   done
   
   echo ""
+  echo "=============================================================================="
+  echo "CONFIGURATION SUMMARY:"
+  echo "  Host: $LANGFUSE_HOST"
+  echo "  Public Key: ${LANGFUSE_PUBLIC_KEY:0:10}..."
+  echo "  Secret Key: ${LANGFUSE_SECRET_KEY:0:10}..."
+  echo "=============================================================================="
+  echo ""
+  
+  # Auto-proceed without confirmation
+  log "Proceeding with configuration..."
+  
   success "Langfuse configuration collected successfully!"
 }
 
@@ -73,19 +183,7 @@ update_deployment_config() {
   # Create a backup of the original file
   cp litellm-deployment.yaml litellm-deployment.yaml.backup
   
-  # Replace the environment variables in the deployment file
-  sed -i "s|LANGFUSE_SECRET_KEY.*|LANGFUSE_SECRET_KEY|" litellm-deployment.yaml
-  sed -i "s|value:.*# LANGFUSE_SECRET_KEY|value: \"$LANGFUSE_SECRET_KEY\"|" litellm-deployment.yaml
-  sed -i "/LANGFUSE_SECRET_KEY/,/value:/ s|value:.*|value: \"$LANGFUSE_SECRET_KEY\"|" litellm-deployment.yaml
-  
-  sed -i "s|LANGFUSE_PUBLIC_KEY.*|LANGFUSE_PUBLIC_KEY|" litellm-deployment.yaml
-  sed -i "s|value:.*# LANGFUSE_PUBLIC_KEY|value: \"$LANGFUSE_PUBLIC_KEY\"|" litellm-deployment.yaml
-  sed -i "/LANGFUSE_PUBLIC_KEY/,/value:/ s|value:.*|value: \"$LANGFUSE_PUBLIC_KEY\"|" litellm-deployment.yaml
-  
-  sed -i "s|LANGFUSE_HOST.*|LANGFUSE_HOST|" litellm-deployment.yaml
-  sed -i "s|value: http://your-langfuse-loadbalancer.us-east-1.elb.amazonaws.com|value: \"$LANGFUSE_HOST\"|" litellm-deployment.yaml
-  
-  # More precise replacement using awk for better control
+  # Use awk for more reliable replacement (works on both macOS and Linux)
   awk -v secret_key="$LANGFUSE_SECRET_KEY" -v public_key="$LANGFUSE_PUBLIC_KEY" -v host="$LANGFUSE_HOST" '
   /- name: LANGFUSE_SECRET_KEY/ { 
     print $0; 
@@ -106,7 +204,7 @@ update_deployment_config() {
     next 
   }
   { print }
-  ' litellm-deployment.yaml.backup > litellm-deployment.yaml
+  ' litellm-deployment.yaml.backup > litellm-deployment.yaml.tmp && mv litellm-deployment.yaml.tmp litellm-deployment.yaml
   
   success "Deployment configuration updated with Langfuse settings!"
 }

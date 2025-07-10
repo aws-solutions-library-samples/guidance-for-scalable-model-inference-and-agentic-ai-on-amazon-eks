@@ -32,15 +32,10 @@ install: verify-cluster setup-base setup-models setup-observability setup-gatewa
 	@echo "   - Login with username 'admin' and password 'sk-123456'"
 	@echo "   - Create a virtual key in 'Virtual Keys' section"
 	@echo "   - Mark 'All Team Models' for the models field"
+	@echo "   - Note down the key value
 	@echo ""
-	@echo "2. Configure Langfuse:"
-	@echo "   - Access Langfuse web interface"
-	@echo "   - Create organization 'test' and project 'demo'"
-	@echo "   - Record Public Key (PK) and Secret Key (SK)"
-	@echo ""
-	@echo "3. Deploy agentic applications:"
-	@echo "   - Run 'make setup-idp' for Intelligent Document Processing"
-	@echo "   - Run 'make setup-rag' for RAG with OpenSearch"
+	@echo "2. Deploy agentic applications:"
+	@echo "   - Refer the README
 
 # Verify cluster access
 verify-cluster:

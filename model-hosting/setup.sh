@@ -22,11 +22,87 @@ warn() {
 
 error() {
   echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ERROR:${NC} $1"
+  cleanup_on_exit
   exit 1
 }
 
 success() {
   echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')] SUCCESS:${NC} $1"
+}
+
+# Cleanup function to restore original files
+cleanup_on_exit() {
+  log "Performing cleanup..."
+  if [ -f "ray-services/ray-service-llamacpp-with-embedding.yaml.backup" ]; then
+    log "Restoring original YAML file..."
+    mv "ray-services/ray-service-llamacpp-with-embedding.yaml.backup" "ray-services/ray-service-llamacpp-with-embedding.yaml"
+    success "Original YAML file restored!"
+  fi
+}
+
+# Set up trap to cleanup on script exit
+trap cleanup_on_exit EXIT
+
+# Function to prompt for Hugging Face token
+get_hugging_face_token() {
+  log "Hugging Face token is required for model access..."
+  
+  # Check if token is already set as environment variable
+  if [ -n "$HUGGING_FACE_TOKEN" ]; then
+    log "Using Hugging Face token from environment variable HUGGING_FACE_TOKEN"
+    HF_TOKEN="$HUGGING_FACE_TOKEN"
+  else
+    # Provide instructions for getting a token
+    echo
+    echo "To get a Hugging Face token:"
+    echo "1. Go to https://huggingface.co/settings/tokens"
+    echo "2. Create a new token with 'Read' permissions"
+    echo "3. Copy the token and paste it below"
+    echo
+    echo "Alternatively, you can set the HUGGING_FACE_TOKEN environment variable:"
+    echo "export HUGGING_FACE_TOKEN=your_token_here"
+    echo
+    
+    # Prompt user for token
+    echo -n "Please enter your Hugging Face token: "
+    read -s HF_TOKEN
+    echo
+    
+    if [ -z "$HF_TOKEN" ]; then
+      error "Hugging Face token is required. Please provide a valid token."
+    fi
+    
+    # Basic validation - HF tokens typically start with 'hf_'
+    if [[ ! "$HF_TOKEN" =~ ^hf_.* ]]; then
+      warn "Warning: Hugging Face tokens typically start with 'hf_'. Please verify your token is correct."
+      echo -n "Continue anyway? (y/N): "
+      read -r confirm
+      if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        error "Token validation failed. Please provide a valid Hugging Face token."
+      fi
+    fi
+  fi
+  
+  success "Hugging Face token configured successfully!"
+}
+
+# Function to update YAML files with Hugging Face token
+update_yaml_with_token() {
+  log "Updating YAML files with Hugging Face token..."
+  
+  # Update ray-service YAML file
+  if [ -f "ray-services/ray-service-llamacpp-with-embedding.yaml" ]; then
+    # Create a backup of the original file
+    cp "ray-services/ray-service-llamacpp-with-embedding.yaml" "ray-services/ray-service-llamacpp-with-embedding.yaml.backup"
+    
+    # Replace the token placeholder with actual token
+    sed -i.tmp "s/HUGGING_FACE_TOKEN_HERE/$HF_TOKEN/g" "ray-services/ray-service-llamacpp-with-embedding.yaml"
+    rm "ray-services/ray-service-llamacpp-with-embedding.yaml.tmp" 2>/dev/null || true
+    
+    success "Ray service YAML updated with Hugging Face token!"
+  else
+    error "ray-service-llamacpp-with-embedding.yaml not found in ray-services directory"
+  fi
 }
 
 # Check prerequisites
@@ -121,9 +197,10 @@ main() {
   log "Starting model hosting deployment..."
   
   check_prerequisites
+  get_hugging_face_token
+  update_yaml_with_token
   install_ray_llamacpp_embedding
   install_standalone_vllm_reasoning
-  install_standalone_vllm_vision
   wait_for_services
   verify_installations
   

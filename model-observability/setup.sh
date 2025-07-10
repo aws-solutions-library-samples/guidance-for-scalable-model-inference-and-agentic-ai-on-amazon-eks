@@ -29,24 +29,49 @@ success() {
   echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')] SUCCESS:${NC} $1"
 }
 
-log "Installing Langfuse service account..."
-kubectl create -f langfuse-sa.yaml 
+# Function to check if Langfuse is already deployed
+check_existing_deployment() {
+  if kubectl get pods -l app.kubernetes.io/instance=langfuse --no-headers 2>/dev/null | grep -q "Running"; then
+    warn "Langfuse appears to be already running. Checking deployment status..."
+    kubectl get pods -l app.kubernetes.io/instance=langfuse
+    return 0
+  fi
+  return 1
+}
 
-log "Installing Langfuse deployment..."
-kubectl create -f langfuse.yaml 
+log "Checking for existing Langfuse deployment..."
+if check_existing_deployment; then
+  log "Langfuse is already deployed and running. Skipping deployment steps..."
+else
+  log "Installing Langfuse service account..."
+  if kubectl apply -f langfuse-sa.yaml --dry-run=client > /dev/null 2>&1; then
+    kubectl apply -f langfuse-sa.yaml
+    success "Langfuse service accounts applied successfully!"
+  else
+    warn "Failed to validate langfuse-sa.yaml, skipping..."
+  fi
 
-# helm repo add langfuse https://langfuse.github.io/langfuse-k8s
-# helm repo update
+  log "Installing Langfuse deployment..."
+  if kubectl apply -f langfuse.yaml --dry-run=client > /dev/null 2>&1; then
+    kubectl apply -f langfuse.yaml
+    success "Langfuse deployment applied successfully!"
+  else
+    warn "Failed to validate langfuse.yaml, skipping..."
+  fi
 
-# # SALT=$(openssl rand -hex 16)
-# SALT="NOT_SALTY"
+  # helm repo add langfuse https://langfuse.github.io/langfuse-k8s
+  # helm repo update
 
-# helm install langfuse langfuse/langfuse --create-namespace -n genai -f values.yaml
+  # # SALT=$(openssl rand -hex 16)
+  # SALT="NOT_SALTY"
 
-log "Waiting for Langfuse pods to be ready..."
-kubectl wait --for=condition=ready pods --selector=app.kubernetes.io/instance=langfuse --timeout=300s 
+  # helm install langfuse langfuse/langfuse --create-namespace -n genai -f values.yaml
 
-success "Langfuse deployment completed successfully!"
+  log "Waiting for Langfuse pods to be ready..."
+  kubectl wait --for=condition=ready pods --selector=app.kubernetes.io/instance=langfuse --timeout=300s 
+
+  success "Langfuse deployment completed successfully!"
+fi
 
 log "Installing Langfuse web ingress..."
 if [ -f "langfuse-web-ingress.yaml" ]; then
@@ -63,4 +88,3 @@ kubectl get ingress langfuse-web-ingress 2>/dev/null || warn "Langfuse ingress n
 
 success "Model observability setup completed!"
 log "Refer to README.md to access Langfuse and define Public/Private Keys"
-

@@ -151,6 +151,33 @@ install_kuberay_operator() {
   success "KubeRay operator installed successfully!"
 }
 
+# Install NVIDIA Device Plugin (standalone)
+install_nvidia_device_plugin() {
+  log "Installing NVIDIA Device Plugin..."
+  
+  # Check if NVIDIA Device Plugin is already installed
+  if kubectl get daemonset nvidia-device-plugin-daemonset -n kube-system &> /dev/null; then
+    warn "NVIDIA Device Plugin is already installed. Skipping..."
+    return
+  fi
+  
+  # Install NVIDIA Device Plugin
+  kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.17.2/deployments/static/nvidia-device-plugin.yml
+  
+  # Wait for device plugin to be ready
+  log "Waiting for NVIDIA Device Plugin to be ready..."
+  kubectl rollout status daemonset/nvidia-device-plugin-daemonset -n kube-system --timeout=300s
+  
+  # Verify installation
+  if kubectl get pods -n kube-system | grep nvidia-device-plugin | grep Running > /dev/null; then
+    success "NVIDIA Device Plugin is running successfully!"
+  else
+    warn "NVIDIA Device Plugin may still be starting up..."
+  fi
+  
+  success "NVIDIA Device Plugin installation completed!"
+}
+
 # Install NVIDIA GPU operator
 install_nvidia_gpu_operator() {
   log "Installing NVIDIA GPU operator..."
@@ -216,6 +243,14 @@ verify_installations() {
   log "Verifying NVIDIA GPU operator installation..."
   kubectl get all -n gpu-operator
   
+  log "Verifying NVIDIA Device Plugin installation..."
+  if kubectl get daemonset nvidia-device-plugin-daemonset -n kube-system &> /dev/null; then
+    success "NVIDIA Device Plugin daemonset is installed."
+    kubectl get pods -n kube-system | grep nvidia-device-plugin || true
+  else
+    warn "NVIDIA Device Plugin daemonset not found."
+  fi
+  
   log "Checking for RayCluster CRD..."
   if kubectl get crd rayclusters.ray.io &> /dev/null; then
     success "RayCluster CRD is installed."
@@ -228,6 +263,14 @@ verify_installations() {
     success "NVIDIA device plugin found."
   else
     warn "NVIDIA device plugin not found. GPU operator might still be initializing."
+  fi
+  
+  log "Checking for GPU resources on nodes..."
+  if kubectl get nodes -o=custom-columns=NAME:.metadata.name,GPU:.status.capacity.nvidia\\.com\\/gpu --no-headers | grep -v "<none>" &> /dev/null; then
+    success "GPU resources detected on nodes:"
+    kubectl get nodes -o=custom-columns=NAME:.metadata.name,GPU:.status.capacity.nvidia\\.com\\/gpu --no-headers | grep -v "<none>"
+  else
+    warn "No GPU resources found yet. This is normal if no GPU nodes are currently provisioned."
   fi
   
   log "Verifying GP3 storage class..."
@@ -250,12 +293,13 @@ main() {
   validate_eks_cluster
   install_kuberay_operator
   install_nvidia_gpu_operator
+  install_nvidia_device_plugin  # Added NVIDIA device plugin installation
   install_gp3_storage
   install_karpenter_nodepools
   verify_installations
   
   success "All components installed successfully!"
-  log "Your EKS cluster now has KubeRay, NVIDIA GPU operators, GP3 storage class, and Karpenter node pools installed."
+  log "Your EKS cluster now has KubeRay, NVIDIA GPU operators, NVIDIA device plugin, GP3 storage class, and Karpenter node pools installed."
 }
 
 # Execute main function

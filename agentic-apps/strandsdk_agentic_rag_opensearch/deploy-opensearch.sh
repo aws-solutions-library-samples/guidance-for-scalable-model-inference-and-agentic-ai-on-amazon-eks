@@ -177,8 +177,54 @@ if [ $? -eq 0 ]; then
         echo ""
         echo "🔧 Setting up OpenSearch index..."
         
-        # Check if setup_opensearch_index.py exists
-        if [ -f "setup_opensearch_index.py" ]; then
+        # Install required dependencies if not already installed
+        echo "📦 Installing required dependencies (opensearch-py, boto3, requests-aws4auth)..."
+        INSTALL_SUCCESS=false
+        
+        # Check if all dependencies are already installed
+        if python3 -c "import opensearchpy, boto3; from requests_aws4auth import AWS4Auth" 2>/dev/null; then
+            echo "✅ All required dependencies are already installed"
+            INSTALL_SUCCESS=true
+        else
+            echo "   Required dependencies not found, installing..."
+            
+            # Try different installation methods
+            if [[ "$VIRTUAL_ENV" != "" ]]; then
+                echo "   Using virtual environment: $VIRTUAL_ENV"
+                if pip install opensearch-py boto3 requests-aws4auth; then
+                    INSTALL_SUCCESS=true
+                fi
+            elif command -v pip3 &> /dev/null; then
+                echo "   Trying pip3 with --user flag..."
+                if pip3 install --user opensearch-py boto3 requests-aws4auth; then
+                    INSTALL_SUCCESS=true
+                elif pip3 install --break-system-packages opensearch-py boto3 requests-aws4auth; then
+                    echo "   Installed with --break-system-packages flag"
+                    INSTALL_SUCCESS=true
+                fi
+            elif command -v python3 -m pip &> /dev/null; then
+                echo "   Trying python3 -m pip..."
+                if python3 -m pip install --user opensearch-py boto3 requests-aws4auth; then
+                    INSTALL_SUCCESS=true
+                elif python3 -m pip install --break-system-packages opensearch-py boto3 requests-aws4auth; then
+                    echo "   Installed with --break-system-packages flag"
+                    INSTALL_SUCCESS=true
+                fi
+            fi
+            
+            if [ "$INSTALL_SUCCESS" = false ]; then
+                echo "⚠️  Failed to install dependencies automatically"
+                echo "   Please install them manually before running index setup:"
+                echo "   pip3 install --user opensearch-py boto3 requests-aws4auth"
+                echo "   or activate a virtual environment and run: pip install opensearch-py boto3 requests-aws4auth"
+                echo "   or use: pip3 install --break-system-packages opensearch-py boto3 requests-aws4auth"
+            else
+                echo "✅ Dependencies installed successfully"
+            fi
+        fi
+        
+        # Check if setup_opensearch_index.py exists and opensearch-py is available
+        if [ -f "setup_opensearch_index.py" ] && [ "$INSTALL_SUCCESS" = true ]; then
             # Get the service account role ARN from CloudFormation output
             SERVICE_ACCOUNT_ROLE_ARN=$(aws cloudformation describe-stacks \
                 --stack-name $STACK_NAME \
@@ -198,11 +244,26 @@ if [ $? -eq 0 ]; then
                 echo "✅ OpenSearch index created successfully!"
             else
                 echo "⚠️  OpenSearch index setup failed, but you can run it manually later:"
+                echo "   First install dependencies: pip3 install --user opensearch-py boto3 requests-aws4auth"
+                echo "   Then run:"
                 echo "   export OPENSEARCH_ENDPOINT=https://$ENDPOINT"
                 echo "   export AWS_REGION=$REGION"
                 echo "   export SERVICE_ACCOUNT_ROLE_ARN=$SERVICE_ACCOUNT_ROLE_ARN"
                 echo "   python3 setup_opensearch_index.py"
             fi
+        elif [ -f "setup_opensearch_index.py" ] && [ "$INSTALL_SUCCESS" = false ]; then
+            echo "⚠️  setup_opensearch_index.py found but required dependencies not available"
+            echo "   Install dependencies first, then run index setup manually:"
+            echo "   pip3 install --user opensearch-py boto3 requests-aws4auth"
+            echo "   export OPENSEARCH_ENDPOINT=https://$ENDPOINT"
+            echo "   export AWS_REGION=$REGION"
+            SERVICE_ACCOUNT_ROLE_ARN=$(aws cloudformation describe-stacks \
+                --stack-name $STACK_NAME \
+                --region $REGION \
+                --query 'Stacks[0].Outputs[?OutputKey==`ServiceAccountRoleArn`].OutputValue' \
+                --output text)
+            echo "   export SERVICE_ACCOUNT_ROLE_ARN=$SERVICE_ACCOUNT_ROLE_ARN"
+            echo "   python3 setup_opensearch_index.py"
         else
             echo "⚠️  setup_opensearch_index.py not found, skipping index creation"
             echo "   You can create the index manually later"
@@ -214,14 +275,8 @@ if [ $? -eq 0 ]; then
     
     echo ""
     echo "📝 Next steps:"
-    echo "1. Create the Kubernetes service account if it doesn't exist:"
-    echo "   kubectl create serviceaccount strandsdk-rag-service-account -n $NAMESPACE"
-    echo ""
-    echo "2. Update your .env file with:"
-    echo "   OPENSEARCH_ENDPOINT=https://$ENDPOINT"
-    echo "   AWS_REGION=$REGION"
-    echo ""
-    echo "3. If index setup failed, run manually:"
+    echo "If index setup failed, run manually:"
+    echo "   pip3 install --user opensearch-py boto3 requests-aws4auth"
     echo "   export OPENSEARCH_ENDPOINT=https://$ENDPOINT"
     echo "   export AWS_REGION=$REGION"
     SERVICE_ACCOUNT_ROLE_ARN=$(aws cloudformation describe-stacks \

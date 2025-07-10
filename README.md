@@ -240,6 +240,7 @@ For production deployments, use the containerized solution with Kubernetes:
 - EKS cluster
 - TAVILY_API_KEY(https://docs.tavily.com/documentation/quickstart#get-your-free-tavily-api-key)
 - AWS credentials configured
+- Docker daemon in running status
 
 ###### Installation
 

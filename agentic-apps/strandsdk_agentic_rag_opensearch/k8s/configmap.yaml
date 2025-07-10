@@ -59,39 +59,3 @@ data:
   tavily-api-key: <BASE64_ENCODED_TAVILY_API_KEY>
   langfuse-public-key: <BASE64_ENCODED_LANGFUSE_PUBLIC_KEY>
   langfuse-secret-key: <BASE64_ENCODED_LANGFUSE_SECRET_KEY>
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: knowledge-base
-  labels:
-    app: strandsdk-rag
-data:
-  # Add your knowledge files here as key-value pairs
-  # Replace with your actual knowledge documents
-  sample-medical.md: |
-    # Medical Knowledge Base
-    
-    ## Bell's Palsy
-    Bell's palsy is a condition that causes sudden weakness in the muscles on one side of your face.
-    
-    ### Symptoms
-    - Sudden weakness or paralysis on one side of the face
-    - Drooping of the eyelid and corner of the mouth
-    - Drooling
-    - Difficulty eating and drinking
-    
-    ### Treatment
-    - Corticosteroids (prednisone)
-    - Eye protection
-    - Physical therapy
-    
-  sample-general.txt: |
-    This is a sample knowledge document for the RAG system.
-    Add your actual knowledge files here by replacing this content.
-    
-    The system supports multiple file formats:
-    - Markdown (.md)
-    - Text (.txt)
-    - JSON (.json)
-    - CSV (.csv)

@@ -64,7 +64,7 @@ spec:
         karpenter.sh/discovery: ${CLUSTER_NAME}
   amiFamily: "AL2023"
   amiSelectorTerms:
-    - name: "amazon-eks-node-al2023-arm64-standard-1.29-*"
+    - name: "amazon-eks-node-al2023-arm64-standard-1.33-*"
   role: KarpenterNode-${CLUSTER_NAME}
   tags:
     Environment: dev

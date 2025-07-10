@@ -63,7 +63,7 @@ spec:
         - name: HUGGING_FACE_HUB_TOKEN
           valueFrom:
             secretKeyRef:
-              name: hf_token
+              name: hf-token
               key: token
         - name: OMP_NUM_THREADS
           value: "8"  

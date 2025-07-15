@@ -37,6 +37,57 @@ The architecture diagram illustrates our scalable ML inference solution with the
 
 This architecture provides flexibility to choose between cost-optimized CPU inference on Graviton processors or high-throughput GPU inference based on your specific requirements, all while maintaining elastic scalability through Kubernetes and Karpenter.
 
+## Architecture Steps
+
+1. **Foundation Setup**: The foundation begins with an Amazon EKS cluster, configured for application readiness and with compute plane managed by Karpenter. This setup efficiently provisions both AWS Graviton and GPU based instances across multiple Availability Zones (AZs), ensuring robust infrastructure distribution and high availability of various Kubernetes services.
+
+2. **User Request Entry**: User interaction starts through HTTP requests directed to an exposed endpoint, managed by Elastic Load Balancing (ELB). This entry point serves as the gateway for all user queries and ensures balanced distribution of incoming traffic while maintaining consistent accessibility.
+
+3. **Orchestration and Analysis**: The orchestrator agent, powered by Strands Agent SDK, serves as the central coordination hub. It processes incoming queries by connecting with reasoning models supported by LiteLLM and vLLM services, analyzing the requests, and determining the appropriate workflow and tools needed for response generation. LiteLLM functions as a unified API gateway for model management, providing centralized security controls and standardized access to both embedding and reasoning models.
+
+4. **Knowledge Validation**: Knowledge validation begins as the orchestrator agent delegates to the RAG agent to verify knowledge base currency. When updates are needed, the RAG agent initiates the process of embedding new information into the Amazon Opensearch cluster, ensuring the knowledge base remains current and comprehensive.
+
+5. **Embedding Process**: The embedding process is handled within a KubeRay cluster, where the Ray header dynamically manages worker node scaling based on resource demands. These worker nodes execute the embedding process through the llamacpp framework, while the RAG agent simultaneously embeds user questions and searches for relevant information within the OpenSearch cluster.
+
+6. **Quality Assurance**: Quality assurance is performed by the Evaluation Agent, which leverages models hosted in Amazon Bedrock. This agent implements a feedback-based correction loop using RAGAS metrics to assess response quality and provides relevancy scores to the orchestrator agent for decision-making purposes.
+
+7. **Web Search Fallback**: When the RAG agent's responses receive low relevancy scores, the orchestrator agent initiates a web search process. It retrieves the Tavily web search API tool from the web search MCP server and performs dynamic queries to obtain supplementary or corrective information.
+
+8. **Final Response Generation**: The final response generation occurs on GPU instances running vLLM. The reasoning model processes the aggregated information, including both knowledge base data and web search results when applicable, refining and rephrasing the content to create a coherent and accurate response for the user.
+
+9. **Comprehensive Tracking**: Throughout this entire process, the Strands Agent SDK maintains comprehensive interaction tracking. All agent activities and communications are automatically traced, with the resulting data visualized through the Langfuse service, providing complete transparency and monitoring of the system's operations.
+
+
+## Plan your deployment
+
+### Cost
+
+You are responsible for the cost of the AWS services used while running this guidance. 
+As of August 2025, the cost for running this guidance with the default settings in the US East (N. Virginia) Region is approximately **$447.47/month**.
+
+We recommend creating a [budget](https://alpha-docs-aws.amazon.com/awsaccountbilling/latest/aboutv2/budgets-create.html) through [AWS Cost Explorer](http://aws.amazon.com/aws-cost-management/aws-cost-explorer/) to help manage costs. Prices are subject to change. For full details, refer to the pricing webpage for each AWS service used in this guidance.
+
+### Sample cost table
+
+The following table provides a sample cost breakdown for deploying this guidance with the default parameters in the `us-east-1` (N. Virginia) Region for one month. This estimate is based on the AWS Pricing Calculator output for the full deployment as per the guidance.
+
+| **AWS service** | Dimensions | Cost, month [USD] |
+|-----------------|------------|-------------------|
+| Amazon EKS | 1 cluster | $73.00 |
+| Amazon VPC | 3 NAT Gateways | $98.67 |
+| Amazon EC2 | 2 m6g.large instances | $112.42 |
+| Amazon Managed Service for Prometheus (AMP) | Metric samples, storage, and queries | $100.60 |
+| Amazon Managed Grafana (AMG) | Metrics visualization - Editor and Viewer users | $14.00 |
+| Amazon EBS | gp2 storage volumes and snapshots | $17.97 |
+| Application Load Balancer | 1 ALB for workloads | $16.66 |
+| Amazon VPC | Public IP addresses | $3.65 |
+| AWS Key Management Service (KMS) | Keys and requests | $7.00 |
+| Amazon CloudWatch | Metrics | $3.00 |
+| Amazon ECR | Data storage | $0.50 |
+| **TOTAL** |  | **$447.47/month** |
+
+For a more accurate estimate based on your specific configuration and usage patterns, we recommend using the [AWS Pricing Calculator](https://calculator.aws).
+
 ## Quick Start Guide
 
 The whole solution is including two parts, Agentic AI platform and Agentic AI application, let us go through the Agentic AI platform firstly 
@@ -51,11 +102,37 @@ For the fastest and most reliable setup, use our automated Makefile:
 - EKS cluster set up following the [AWS Solutions Guidance: Automated Provisioning of Application-Ready Amazon EKS Clusters](https://aws.amazon.com/solutions/guidance/automated-provisioning-of-application-ready-amazon-eks-clusters/)
 - `kubectl` configured to access your cluster
 - Required CLI tools installed (`pnpm`, `pip`, etc.)
+- a Hugging Face Token
+
+#### How to create a Hugging Face Token
+
+To access Hugging Face models, you'll need to create an access token:
+
+1. **Sign up or log in** to [Hugging Face](https://huggingface.co/)
+2. **Navigate to Settings**: Click on your profile picture in the top right corner and select "Settings"
+3. **Access Tokens**: In the left sidebar, click on "Access Tokens"
+4. **Create New Token**: Click "New token" button
+5. **Configure Token**:
+   - **Name**: Give your token a descriptive name (e.g., "EKS-ML-Inference")
+   - **Type**: Select "Read" for most use cases (allows downloading models)
+   - **Repositories**: Leave empty to access all public repositories, or specify particular ones
+6. **Generate Token**: Click "Generate a token"
+7. **Copy and Store**: Copy the generated token immediately and store it securely
+
+**Important Notes**:
+- Keep your token secure and never share it publicly
+- You can revoke tokens at any time from the same settings page
+- For production environments, consider using organization tokens with appropriate permissions
+- Some models may require additional permissions or agreements before access
+
 
 #### Complete Installation
 ```bash
 # Install all core components (base infrastructure, models, gateway, observability)
 make install
+
+# Install agent app
+make setup-rag-strands
 ```
 
 #### Individual Components

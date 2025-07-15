@@ -1,7 +1,7 @@
 # Makefile for Cost Effective and Scalable Model Inference on AWS Graviton with EKS
 # This Makefile automates the deployment of the complete ML inference solution
 
-.PHONY: help install setup-base setup-models setup-gateway setup-observability setup-idp setup-rag setup-milvus clean verify-cluster
+.PHONY: help install setup-base setup-models setup-gateway setup-observability setup-idp setup-rag setup-rag-strands setup-milvus clean clean-pvcs clean-safe verify-cluster
 
 # Default target
 help:
@@ -14,8 +14,12 @@ help:
 	@echo "  setup-observability - Deploy monitoring and observability"
 	@echo "  setup-idp         - Setup Intelligent Document Processing"
 	@echo "  setup-rag         - Setup RAG with OpenSearch"
+	@echo "  setup-rag-strands - Setup RAG with Strands SDK and OpenSearch (Kubernetes deployment)"
 	@echo "  setup-milvus      - Install Milvus vector database"
-	@echo "  clean             - Clean up all deployments"
+	@echo "  clean             - Complete cleanup including PVCs and persistent resources"
+	@echo "  clean-safe        - Safe cleanup (applications only, preserves data)"
+	@echo "  clean-pvcs        - Remove only persistent volume claims and volumes"
+	@echo "  status            - Check deployment status"
 	@echo ""
 	@echo "Prerequisites:"
 	@echo "  - EKS cluster must be set up following AWS Solutions Guidance"
@@ -32,7 +36,7 @@ install: verify-cluster setup-base setup-models setup-observability setup-gatewa
 	@echo "   - Login with username 'admin' and password 'sk-123456'"
 	@echo "   - Create a virtual key in 'Virtual Keys' section"
 	@echo "   - Mark 'All Team Models' for the models field"
-	@echo "   - Note down the key value
+	@echo "   - Note down the key value"
 	@echo ""
 	@echo "2. Deploy agentic applications:"
 	@echo "   - Refer the README
@@ -59,6 +63,7 @@ setup-models: setup-base
 # Setup observability
 setup-observability: setup-models
 	@echo "📊 Deploying observability tools..."
+	@echo "⏱️  Note: Langfuse deployment may take up to 10 minutes to complete"
 	cd model-observability && chmod +x setup.sh && ./setup.sh
 	@echo "✅ Observability tools deployed"
 	@echo ""
@@ -129,6 +134,28 @@ setup-rag:
 		echo "   pnpm dev"; \
 	fi
 
+# Setup RAG with Strands SDK and OpenSearch (Kubernetes deployment)
+setup-rag-strands:
+	@echo "🔍 Setting up RAG with Strands SDK and OpenSearch..."
+	@echo "📋 This will deploy a containerized multi-agent RAG system with:"
+	@echo "   - SupervisorAgent (Orchestrator) with built-in tracing"
+	@echo "   - KnowledgeAgent for managing knowledge base and embeddings"
+	@echo "   - MCPAgent for tool interactions via MCP protocol"
+	@echo "   - OpenSearch cluster for vector storage"
+	@echo "   - Tavily web search integration"
+	@echo "   - OpenTelemetry tracing with Langfuse integration"
+	@echo ""
+	@echo "⚠️  Prerequisites:"
+	@echo "   - Python 3.9+"
+	@echo "   - EKS cluster"
+	@echo "   - TAVILY_API_KEY (https://docs.tavily.com/documentation/quickstart#get-your-free-tavily-api-key)"
+	@echo "   - AWS credentials configured"
+	@echo "   - Docker daemon in running status"
+	@echo ""
+	@echo "🚀 Starting deployment..."
+	cd agentic-apps/strandsdk_agentic_rag_opensearch && chmod +x setup.sh && ./setup.sh
+	@echo "✅ RAG with Strands SDK deployment complete!"
+
 # Setup Milvus vector database
 setup-milvus:
 	@echo "🗄️  Installing Milvus vector database..."
@@ -171,24 +198,171 @@ setup-benchmark:
 	@echo "4. Run: kubectl port-forward service/ray-service-llamacpp-serve-svc 8000:8000"
 	@echo "5. Execute: go run perf_benchmark.go"
 
-# Clean up all deployments
+# Clean up all deployments including persistent volumes
 clean:
-	@echo "🧹 Cleaning up deployments..."
-	@echo "Removing agentic applications..."
+	@echo "🧹 Cleaning up all deployments and persistent resources..."
+	@echo ""
+	@echo "⚠️  WARNING: This will delete ALL resources including persistent data!"
+	@echo "📋 Resources that will be deleted:"
+	@echo "   - All application deployments and services"
+	@echo "   - All persistent volume claims and volumes"
+	@echo "   - All custom storage classes"
+	@echo "   - All secrets and configmaps (except system ones)"
+	@echo "   - All custom resource definitions"
+	@echo "   - All operators and system components"
+	@echo "   - All custom namespaces"
+	@echo "   - Base infrastructure components (KubeRay, NVIDIA operators, Karpenter nodepools)"
+	@echo ""
+	@echo "Press Ctrl+C within 15 seconds to cancel..."
+	@sleep 15
+	@echo ""
+	@echo "🗑️  Removing agentic applications..."
 	-kubectl delete -f agent/kubernetes/combined.yaml 2>/dev/null || true
-	@echo "Removing Milvus..."
+	@echo "🗑️  Removing Strands SDK RAG applications..."
+	-kubectl delete -f agentic-apps/strandsdk_agentic_rag_opensearch/k8s/ 2>/dev/null || true
+	-kubectl delete ingress strandsdk-rag-ingress-alb 2>/dev/null || true
+	-kubectl delete secret app-secrets 2>/dev/null || true
+	-kubectl delete configmap app-config 2>/dev/null || true
+	-kubectl delete serviceaccount strandsdk-rag-service-account 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Removing Milvus and related resources..."
 	-kubectl delete -f milvus/milvus-nlb-service.yaml 2>/dev/null || true
 	-kubectl delete -f milvus/milvus-standalone.yaml 2>/dev/null || true
 	-kubectl delete -f milvus/ebs-storage-class.yaml 2>/dev/null || true
-	@echo "Removing observability..."
+	@echo "Waiting for Milvus pods to terminate..."
+	-kubectl wait --for=delete pod -l app=milvus --timeout=120s 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Removing observability components..."
+	@echo "   Uninstalling Langfuse Helm release..."
+	-helm uninstall langfuse 2>/dev/null || true
 	-cd model-observability && kubectl delete -f . 2>/dev/null || true
-	@echo "Removing model gateway..."
+	@echo ""
+	@echo "🗑️  Removing model gateway..."
 	-cd model-gateway && kubectl delete -f . 2>/dev/null || true
-	@echo "Removing model hosting..."
+	@echo ""
+	@echo "🗑️  Removing model hosting services..."
 	-cd model-hosting && kubectl delete -f . 2>/dev/null || true
-	@echo "Removing base infrastructure..."
-	-cd base_eks_setup && kubectl delete -f . 2>/dev/null || true
-	@echo "✅ Cleanup complete"
+	@echo ""
+	@echo "🗑️  Removing base infrastructure components..."
+	@echo "   Removing Karpenter nodepools..."
+	-kubectl delete -f base_eks_setup/karpenter_nodepool/ 2>/dev/null || true
+	@echo "   Removing GP3 storage class..."
+	-kubectl delete -f base_eks_setup/gp3.yaml 2>/dev/null || true
+	@echo "   Removing Prometheus monitoring..."
+	-kubectl delete -f base_eks_setup/prometheus-monitoring.yaml 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Removing NVIDIA GPU Operator..."
+	@echo "   Uninstalling NVIDIA GPU Operator Helm releases..."
+	-helm list -n gpu-operator --short | xargs -r -I {} helm uninstall {} -n gpu-operator 2>/dev/null || true
+	@echo "   Removing NVIDIA Device Plugin..."
+	-kubectl delete -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.17.2/deployments/static/nvidia-device-plugin.yml 2>/dev/null || true
+	@echo "   Removing GPU operator namespace..."
+	-kubectl delete namespace gpu-operator 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Removing KubeRay Operator..."
+	@echo "   Uninstalling KubeRay Operator Helm release..."
+	-helm uninstall kuberay-operator -n kuberay 2>/dev/null || true
+	@echo "   Removing KubeRay namespace..."
+	-kubectl delete namespace kuberay 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Removing persistent volume claims..."
+	-kubectl delete pvc --all --all-namespaces --timeout=60s 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Removing persistent volumes..."
+	-kubectl delete pv --all --timeout=60s 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Removing storage classes (custom ones)..."
+	-kubectl delete storageclass gp3 2>/dev/null || true
+	-kubectl delete storageclass gp3-csi 2>/dev/null || true
+	-kubectl delete storageclass ebs-sc 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Removing secrets and configmaps..."
+	-kubectl delete secret --all --all-namespaces --field-selector type!=kubernetes.io/service-account-token 2>/dev/null || true
+	-kubectl delete configmap --all --all-namespaces --field-selector metadata.name!=kube-root-ca.crt 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Removing custom resource definitions..."
+	-kubectl delete crd rayclusters.ray.io 2>/dev/null || true
+	-kubectl delete crd rayservices.ray.io 2>/dev/null || true
+	-kubectl delete crd rayjobs.ray.io 2>/dev/null || true
+	-kubectl delete crd milvuses.milvus.io 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Removing operators and system components..."
+	-kubectl delete -f https://raw.githubusercontent.com/zilliztech/milvus-operator/main/deploy/manifests/deployment.yaml 2>/dev/null || true
+	-kubectl delete -f https://github.com/jetstack/cert-manager/releases/download/v1.5.3/cert-manager.yaml 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Removing namespaces (non-system)..."
+	-kubectl delete namespace kuberay 2>/dev/null || true
+	-kubectl delete namespace milvus-operator 2>/dev/null || true
+	-kubectl delete namespace cert-manager 2>/dev/null || true
+	-kubectl delete namespace gpu-operator 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Force cleanup any remaining resources..."
+	@echo "Checking for stuck resources..."
+	-kubectl get pods --all-namespaces --field-selector=status.phase!=Running,status.phase!=Succeeded 2>/dev/null || true
+	@echo ""
+	@echo "Force deleting any stuck pods..."
+	-kubectl delete pods --all --all-namespaces --grace-period=0 --force 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Removing Helm repositories..."
+	-helm repo remove kuberay 2>/dev/null || true
+	-helm repo remove nvidia 2>/dev/null || true
+	-helm repo remove langfuse 2>/dev/null || true
+	@echo ""
+	@echo "✅ Comprehensive cleanup complete!"
+	@echo ""
+	@echo "ℹ️  Note: Some AWS Load Balancers and EBS volumes may take additional time to be cleaned up by AWS."
+	@echo "ℹ️  Check your AWS console to verify all resources have been properly removed."
+	@echo "ℹ️  Karpenter-managed nodes will be automatically terminated when workloads are removed."
+
+# Safe cleanup - removes applications but preserves persistent data
+clean-safe:
+	@echo "🧹 Safe cleanup - removing applications but preserving data..."
+	@echo ""
+	@echo "🗑️  Removing agentic applications..."
+	-kubectl delete -f agent/kubernetes/combined.yaml 2>/dev/null || true
+	@echo "🗑️  Removing Strands SDK RAG applications..."
+	-kubectl delete -f agentic-apps/strandsdk_agentic_rag_opensearch/k8s/ 2>/dev/null || true
+	-kubectl delete ingress strandsdk-rag-ingress-alb 2>/dev/null || true
+	-kubectl delete secret app-secrets 2>/dev/null || true
+	-kubectl delete configmap app-config 2>/dev/null || true
+	-kubectl delete serviceaccount strandsdk-rag-service-account 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Removing Milvus services (keeping data)..."
+	-kubectl delete -f milvus/milvus-nlb-service.yaml 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Removing observability components..."
+	@echo "   Uninstalling Langfuse Helm release..."
+	-helm uninstall langfuse 2>/dev/null || true
+	-cd model-observability && kubectl delete -f . 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Removing model gateway..."
+	-cd model-gateway && kubectl delete -f . 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Removing model hosting services..."
+	-cd model-hosting && kubectl delete -f . 2>/dev/null || true
+	@echo ""
+	@echo "✅ Safe cleanup complete! Persistent data has been preserved."
+	@echo "ℹ️  To remove persistent data, run 'make clean-pvcs' or 'make clean'"
+
+# Clean only persistent volume claims and volumes
+clean-pvcs:
+	@echo "🗑️  Removing persistent volume claims and volumes..."
+	@echo ""
+	@echo "⚠️  WARNING: This will delete all persistent data!"
+	@echo "Press Ctrl+C within 10 seconds to cancel..."
+	@sleep 10
+	@echo ""
+	@echo "🗑️  Removing persistent volume claims..."
+	-kubectl delete pvc --all --all-namespaces --timeout=60s 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Removing persistent volumes..."
+	-kubectl delete pv --all --timeout=60s 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Removing custom storage classes..."
+	-kubectl delete storageclass gp3-csi 2>/dev/null || true
+	-kubectl delete storageclass ebs-sc 2>/dev/null || true
+	@echo ""
+	@echo "✅ Persistent volume cleanup complete!"
 
 # Status check
 status:

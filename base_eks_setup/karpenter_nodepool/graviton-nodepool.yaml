@@ -10,7 +10,7 @@ spec:
     memory: 4096Gi
   disruption:
     consolidationPolicy: WhenEmptyOrUnderutilized
-    consolidateAfter: 30s
+    consolidateAfter: 30m
   template:
     metadata:
       labels:

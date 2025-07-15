@@ -59,3 +59,20 @@ data:
   tavily-api-key: <BASE64_ENCODED_TAVILY_API_KEY>
   langfuse-public-key: <BASE64_ENCODED_LANGFUSE_PUBLIC_KEY>
   langfuse-secret-key: <BASE64_ENCODED_LANGFUSE_SECRET_KEY>
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: knowledge-base
+  labels:
+    app: strandsdk-rag
+data:
+  # Add your knowledge base files here
+  # Example:
+  # sample-doc.txt: |
+  #   This is sample knowledge base content
+  #   Add your actual knowledge documents here
+  README.md: |
+    # Knowledge Base
+    This ConfigMap contains knowledge base documents for the RAG application.
+    Add your knowledge documents as data entries in this ConfigMap.

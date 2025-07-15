@@ -10,7 +10,7 @@ spec:
     memory: 4096Gi
   disruption:
     consolidationPolicy: WhenEmptyOrUnderutilized
-    consolidateAfter: 30s
+    consolidateAfter: 30m
   template:
     metadata:
       labels:
@@ -65,7 +65,7 @@ spec:
         karpenter.sh/discovery: ${CLUSTER_NAME}
   amiFamily: "AL2023"
   amiSelectorTerms:
-    - name: "amazon-eks-node-al2023-x86_64-neuron-1.29-v*"
+    - name: "amazon-eks-node-al2023-x86_64-neuron-1.33-v*"
   role: KarpenterNode-${CLUSTER_NAME}
   tags:
     Environment: dev

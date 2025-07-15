@@ -159,6 +159,8 @@ spec:
       labels:
         app: litellm
     spec:
+      nodeSelector:
+        kubernetes.io/arch: arm64
       containers:
       - name: litellm
         # image: ghcr.io/berriai/litellm:main-latest

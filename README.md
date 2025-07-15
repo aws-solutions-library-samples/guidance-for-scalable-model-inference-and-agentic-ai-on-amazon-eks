@@ -1,7 +1,72 @@
 # Cost Effective and Scalable Model Inference and Agentic AI on AWS Graviton with EKS
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Important Setup Instructions](#️-important-setup-instructions)
+- [Architecture](#architecture)
+- [Architecture Steps](#architecture-steps)
+- [Plan Your Deployment](#plan-your-deployment)
+  - [Cost](#cost)
+  - [Sample Cost Table](#sample-cost-table)
+- [Quick Start Guide](#quick-start-guide)
+  - [Option 1: Automated Setup with Makefile (Recommended)](#option-1-automated-setup-with-makefile-recommended)
+    - [Prerequisites](#prerequisites)
+    - [How to Create a Hugging Face Token](#how-to-create-a-hugging-face-token)
+    - [Complete Installation](#complete-installation)
+    - [Individual Components](#individual-components)
+    - [Utility Commands](#utility-commands)
+  - [Option 2: Manual Step-by-Step Setup](#option-2-manual-step-by-step-setup)
+    - [Step 1: Set Up EKS Cluster](#step-1-set-up-eks-cluster)
+    - [Step 2: Install Base Infrastructure Components](#step-2-install-base-infrastructure-components)
+    - [Step 3: Deploy Model Hosting Services](#step-3-deploy-model-hosting-services)
+    - [Step 4: Set Up Observability](#step-4-set-up-observability)
+    - [Step 5: Deploy Model Gateway](#step-5-deploy-model-gateway)
+- [Deploy Agentic Applications](#deploy-agentic-applications)
+  - [Multi-Agent RAG with Strands SDK and OpenSearch](#multi-agent-rag-with-strands-sdk-and-opensearch)
+  - [Key Features](#-key-features)
+  - [Usage](#️-usage)
+    - [Option 1: Container Deployment on Kubernetes (Recommended)](#option-1-container-deployment-on-kubernetesrecommended)
+    - [Option 2: Local Development](#option-2-local-development)
+  - [Observability & Tracing](#-observability--tracing)
+  - [Agent Workflows](#-agent-workflows)
+  - [Extending the System](#-extending-the-system)
+  - [Monitoring and Observability](#-monitoring-and-observability)
+  - [Example Use Cases](#-example-use-cases)
+  - [Architecture Benefits](#-architecture-benefits)
+  - [Key Improvements](#-key-improvements)
+
 ## Overview
 This solution implements a comprehensive, scalable ML inference architecture using Amazon EKS, leveraging both Graviton processors for cost-effective CPU-based inference and GPU instances for accelerated inference. The system provides a complete end-to-end platform for deploying large language models with agentic AI capabilities, including RAG (Retrieval Augmented Generation) and intelligent document processing.
+
+## ⚠️ Important Setup Instructions
+
+**Before proceeding with this solution, ensure you have:**
+
+1. **AWS CLI configured** with appropriate permissions for EKS, ECR, CloudFormation, and other AWS services
+2. **kubectl installed** and configured to access your target AWS region
+3. **Docker installed** and running (required for building and pushing container images)
+4. **Sufficient AWS service quotas** - This solution requires multiple EC2 instances, EKS clusters, and other AWS resources
+5. **Valid Hugging Face token** - Required for accessing models (see instructions below)
+6. **Tavily API key** - Required for web search functionality in agentic applications
+
+**Recommended Setup Verification:**
+```bash
+# Verify AWS CLI access
+aws sts get-caller-identity
+
+# Verify kubectl installation
+kubectl version --client
+
+# Verify Docker is running
+docker version
+
+# Check available AWS regions and quotas
+aws ec2 describe-regions
+aws service-quotas get-service-quota --service-code ec2 --quota-code L-1216C47A
+```
+
+**Cost Awareness:** This solution will incur AWS charges. Review the cost breakdown section below and set up billing alerts before deployment.
 
 ## Architecture
 ![Architecture Diagram](image/arch.png)

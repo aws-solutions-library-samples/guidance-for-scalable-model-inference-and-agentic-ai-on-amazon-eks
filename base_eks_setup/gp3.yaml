@@ -4,9 +4,9 @@ metadata:
   name: gp3
   annotations:
     storageclass.kubernetes.io/is-default-class: "true"
-provisioner: ebs.csi.eks.amazonaws.com
+provisioner: ebs.csi.aws.com
 parameters:
   type: gp3
   fsType: ext4
 reclaimPolicy: Delete
-volumeBindingMode: WaitForFirstConsumer
+volumeBindingMode: Immediate

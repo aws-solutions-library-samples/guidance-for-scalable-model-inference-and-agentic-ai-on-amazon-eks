@@ -1,6 +1,12 @@
 #!/bin/bash
 
 # Script to validate existing EKS cluster and install KubeRay and NVIDIA GPU operators
+#
+# Storage Class Configuration:
+# - Creates GP3 storage class with 'Immediate' binding mode instead of 'WaitForFirstConsumer'
+# - This prevents volume binding timeout issues that can occur with StatefulSets
+# - Immediate binding ensures PVs are created immediately when PVCs are created
+# - Compatible with both simple deployments and complex StatefulSet configurations
 
 set -e
 
@@ -208,15 +214,38 @@ install_nvidia_gpu_operator() {
   success "NVIDIA GPU operator installed successfully!"
 }
 
-# Install GP3 storage class
+# Install GP3 storage class with Immediate binding mode
+# Note: Using Immediate binding mode instead of WaitForFirstConsumer to avoid
+# volume binding timeout issues that can occur with StatefulSets and complex scheduling
 install_gp3_storage() {
-  log "Installing GP3 storage class..."
+  log "Installing GP3 storage class with Immediate binding mode..."
   
   if kubectl get storageclass gp3 &> /dev/null; then
-    warn "GP3 storage class already exists. Skipping..."
+    warn "GP3 storage class already exists. Checking configuration..."
+    
+    # Check if the existing storage class has the correct binding mode
+    BINDING_MODE=$(kubectl get storageclass gp3 -o jsonpath='{.volumeBindingMode}')
+    if [ "$BINDING_MODE" != "Immediate" ]; then
+      warn "Existing GP3 storage class uses '$BINDING_MODE' binding mode."
+      warn "For optimal compatibility, consider updating to 'Immediate' binding mode."
+      warn "You can delete the existing storage class and rerun this script to update it."
+    else
+      success "GP3 storage class already configured with Immediate binding mode."
+    fi
   else
     kubectl apply -f gp3.yaml
-    success "GP3 storage class installed successfully!"
+    
+    # Validate the storage class was created correctly
+    if kubectl get storageclass gp3 &> /dev/null; then
+      BINDING_MODE=$(kubectl get storageclass gp3 -o jsonpath='{.volumeBindingMode}')
+      PROVISIONER=$(kubectl get storageclass gp3 -o jsonpath='{.provisioner}')
+      success "GP3 storage class installed successfully!"
+      log "  - Binding Mode: $BINDING_MODE"
+      log "  - Provisioner: $PROVISIONER"
+      log "  - Default: $(kubectl get storageclass gp3 -o jsonpath='{.metadata.annotations.storageclass\.kubernetes\.io/is-default-class}')"
+    else
+      error "Failed to create GP3 storage class"
+    fi
   fi
 }
 
@@ -273,9 +302,22 @@ verify_installations() {
     warn "No GPU resources found yet. This is normal if no GPU nodes are currently provisioned."
   fi
   
-  log "Verifying GP3 storage class..."
+  log "Verifying GP3 storage class configuration..."
   if kubectl get storageclass gp3 &> /dev/null; then
-    success "GP3 storage class is installed."
+    BINDING_MODE=$(kubectl get storageclass gp3 -o jsonpath='{.volumeBindingMode}')
+    PROVISIONER=$(kubectl get storageclass gp3 -o jsonpath='{.provisioner}')
+    IS_DEFAULT=$(kubectl get storageclass gp3 -o jsonpath='{.metadata.annotations.storageclass\.kubernetes\.io/is-default-class}')
+    
+    success "GP3 storage class is installed and configured:"
+    log "  ✓ Binding Mode: $BINDING_MODE"
+    log "  ✓ Provisioner: $PROVISIONER"
+    log "  ✓ Default Storage Class: $IS_DEFAULT"
+    
+    if [ "$BINDING_MODE" = "Immediate" ]; then
+      success "  ✓ Using recommended Immediate binding mode for optimal compatibility"
+    else
+      warn "  ⚠ Using $BINDING_MODE binding mode - consider Immediate for better compatibility"
+    fi
   else
     warn "GP3 storage class not found."
   fi
@@ -299,7 +341,12 @@ main() {
   verify_installations
   
   success "All components installed successfully!"
-  log "Your EKS cluster now has KubeRay, NVIDIA GPU operators, NVIDIA device plugin, GP3 storage class, and Karpenter node pools installed."
+  log "Your EKS cluster now has KubeRay, NVIDIA GPU operators, NVIDIA device plugin, GP3 storage class (with Immediate binding), and Karpenter node pools installed."
+  log ""
+  log "Storage Configuration:"
+  log "  ✓ GP3 storage class configured with Immediate binding mode"
+  log "  ✓ This prevents volume binding timeout issues with StatefulSets"
+  log "  ✓ Compatible with both simple deployments and complex workloads"
 }
 
 # Execute main function

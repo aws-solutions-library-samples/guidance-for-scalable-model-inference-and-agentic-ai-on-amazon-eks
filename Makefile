@@ -8,7 +8,7 @@ help:
 	@echo "Available targets:"
 	@echo "  install           - Complete installation of all components"
 	@echo "  verify-cluster    - Verify EKS cluster access"
-	@echo "  setup-base        - Install base infrastructure components"
+	@echo "  setup-base        - Install base infrastructure components (includes GP3 with Immediate binding)"
 	@echo "  setup-models      - Deploy model hosting services"
 	@echo "  setup-gateway     - Deploy model gateway (LiteLLM)"
 	@echo "  setup-observability - Deploy monitoring and observability"
@@ -20,6 +20,10 @@ help:
 	@echo "  clean-safe        - Safe cleanup (applications only, preserves data)"
 	@echo "  clean-pvcs        - Remove only persistent volume claims and volumes"
 	@echo "  status            - Check deployment status"
+	@echo ""
+	@echo "Storage Configuration:"
+	@echo "  - GP3 storage class uses Immediate binding mode to prevent timeout issues"
+	@echo "  - This ensures StatefulSets and complex workloads provision volumes correctly"
 	@echo ""
 	@echo "Prerequisites:"
 	@echo "  - EKS cluster must be set up following AWS Solutions Guidance"
@@ -39,7 +43,7 @@ install: verify-cluster setup-base setup-models setup-observability setup-gatewa
 	@echo "   - Note down the key value"
 	@echo ""
 	@echo "2. Deploy agentic applications:"
-	@echo "   - Refer the README
+	@echo "   - Refer to the README for agentic application deployment"
 
 # Verify cluster access
 verify-cluster:
@@ -51,6 +55,10 @@ verify-cluster:
 # Setup base infrastructure
 setup-base: verify-cluster
 	@echo "🚀 Installing base infrastructure components..."
+	@echo "   - KubeRay Operator for distributed model serving"
+	@echo "   - NVIDIA GPU Operator for GPU workloads"
+	@echo "   - GP3 storage class with Immediate binding (prevents timeout issues)"
+	@echo "   - Karpenter node pools for different workload types"
 	cd base_eks_setup && chmod +x install_operators.sh && ./install_operators.sh
 	@echo "✅ Base infrastructure setup complete"
 
@@ -279,6 +287,9 @@ clean:
 	@echo "🗑️  Removing secrets and configmaps..."
 	-kubectl delete secret --all --all-namespaces --field-selector type!=kubernetes.io/service-account-token 2>/dev/null || true
 	-kubectl delete configmap --all --all-namespaces --field-selector metadata.name!=kube-root-ca.crt 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Removing service accounts in default namespace..."
+	-kubectl delete serviceaccount --all -n default --field-selector metadata.name!=default 2>/dev/null || true
 	@echo ""
 	@echo "🗑️  Removing custom resource definitions..."
 	-kubectl delete crd rayclusters.ray.io 2>/dev/null || true

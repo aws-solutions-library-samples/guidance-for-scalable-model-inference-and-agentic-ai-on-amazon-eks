@@ -58,8 +58,9 @@ else
 
   log "Installing Langfuse using Helm..."
   if [ -f "langfuse-value.yaml" ]; then
-    helm install langfuse langfuse/langfuse -f langfuse-value.yaml
-    success "Langfuse Helm installation initiated!"
+    helm install langfuse langfuse/langfuse -f langfuse-value.yaml \
+      --set nodeSelector."kubernetes\.io/arch"=arm64
+    success "Langfuse Helm installation initiated with arm64 node selector!"
   else
     error "langfuse-value.yaml not found"
   fi

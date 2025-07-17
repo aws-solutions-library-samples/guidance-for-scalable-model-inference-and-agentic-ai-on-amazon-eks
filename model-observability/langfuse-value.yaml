@@ -17,6 +17,17 @@ langfuse:
         name: langfuse
         key: nextauth-secret
 
+  # Add environment variables for web and worker deployments
+  web:
+    extraEnvVars:
+      - name: REDIS_PORT
+        value: "6379"
+
+  worker:
+    extraEnvVars:
+      - name: REDIS_PORT
+        value: "6379"
+
 postgresql:
   auth:
     existingSecret: langfuse

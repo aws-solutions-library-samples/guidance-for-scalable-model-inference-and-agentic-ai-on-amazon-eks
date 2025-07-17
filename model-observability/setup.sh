@@ -65,6 +65,42 @@ else
     error "langfuse-value.yaml not found"
   fi
 
+  log "Creating Redis port configuration patch..."
+  cat <<EOF > langfuse-redis-port-patch.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: langfuse-web
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+      - name: langfuse-web
+        env:
+        - name: REDIS_PORT
+          value: "6379"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: langfuse-worker
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+      - name: langfuse-worker
+        env:
+        - name: REDIS_PORT
+          value: "6379"
+EOF
+  success "Redis port configuration patch created!"
+
+  log "Applying Redis port configuration patch..."
+  kubectl apply -f langfuse-redis-port-patch.yaml
+  success "Redis port configuration patch applied!"
+
   log "Waiting for Langfuse pods to be ready (timeout: 10 minutes)..."
   if kubectl wait --for=condition=ready pods --selector=app.kubernetes.io/instance=langfuse --timeout=600s; then
     success "Langfuse deployment completed successfully!"

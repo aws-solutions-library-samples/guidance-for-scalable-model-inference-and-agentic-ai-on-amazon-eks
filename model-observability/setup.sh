@@ -123,7 +123,7 @@ fi
 log "Verifying Langfuse installation..."
 kubectl get pods -l app.kubernetes.io/instance=langfuse
 kubectl get service -l app.kubernetes.io/instance=langfuse
-kubectl get ingress langfuse-web-ingress 2>/dev/null || warn "Langfuse ingress not found"
+kubectl get ingress langfuse-web-ingress-alb 2>/dev/null || warn "Langfuse ingress not found"
 
 success "Model observability setup completed!"
 log "Refer to README.md to access Langfuse and define Public/Private Keys"

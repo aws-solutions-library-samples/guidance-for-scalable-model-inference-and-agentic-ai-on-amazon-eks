@@ -605,8 +605,8 @@ main() {
         echo
         echo -e "${BLUE}Test endpoints:${NC}"
         echo "Health check: curl -X GET \"http://$ALB_ENDPOINT/health\""
-        echo "Simple query: curl -X POST \"http://$ALB_ENDPOINT/query\" -H \"Content-Type: application/json\" -d '{\"query\": \"What is Bell's palsy?\", \"include_web_search\": true}'"
-        echo "Embed knowledge: curl -X POST \"http://$ALB_ENDPOINT/embed-knowledge\" -H \"Content-Type: application/json\""
+        echo "Embed knowledge: curl -X POST \"http://$ALB_ENDPOINT/embed\" -H \"Content-Type: application/json\" -d '{\"force_refresh\": false}'"
+        echo "Complex query: curl -i -X POST \"http://$ALB_ENDPOINT/query\" -H \"Content-Type: application/json\" -d '{\"question\": \"Find information about \\\"What was the purpose of the study on encainide and flecainide in patients with supraventricular arrhythmias\\\". Summarize this information and create a comprehensive story.Save the story and important information to a file named \\\"test1.md\\\" in the output directory as a beautiful markdown file.\", \"top_k\": 3}' --max-time 600"
         echo
         echo -e "${YELLOW}Note: It may take a few minutes for the ALB to become fully available.${NC}"
         echo -e "${YELLOW}If services were auto-detected, verify the endpoints are correct for your setup.${NC}"

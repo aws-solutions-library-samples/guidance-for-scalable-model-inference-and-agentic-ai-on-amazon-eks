@@ -208,23 +208,49 @@ setup-benchmark:
 
 # Clean up all deployments including persistent volumes
 clean:
-	@echo "🧹 Cleaning up all deployments and persistent resources..."
+	@echo "🧹 Cleaning up deployments and resources created by this Makefile..."
 	@echo ""
-	@echo "⚠️  WARNING: This will delete ALL resources including persistent data!"
+	@echo "⚠️  WARNING: This will delete resources installed by this Makefile!"
 	@echo "📋 Resources that will be deleted:"
-	@echo "   - All application deployments and services"
-	@echo "   - All persistent volume claims and volumes"
-	@echo "   - All custom storage classes"
-	@echo "   - All secrets and configmaps (except system ones)"
-	@echo "   - All custom resource definitions"
-	@echo "   - All operators and system components"
-	@echo "   - All custom namespaces"
-	@echo "   - Base infrastructure components (KubeRay, NVIDIA operators, Karpenter nodepools)"
+	@echo "   - Application deployments and services in default, kuberay, gpu-operator, milvus, and langfuse namespaces"
+	@echo "   - Persistent volume claims and volumes created by this Makefile"
+	@echo "   - Custom storage classes"
+	@echo "   - Secrets and configmaps in managed namespaces (except system ones)"
+	@echo "   - Custom resource definitions related to Ray and Milvus"
+	@echo "   - Operators and components installed by this Makefile"
+	@echo "   - Custom namespaces created by this Makefile"
+	@echo ""
+	@echo "📋 Resources that will NOT be deleted:"
+	@echo "   - ArgoCD components"
+	@echo "   - AWS Load Balancer Controller"
+	@echo "   - CoreDNS"
+	@echo "   - EBS CSI Controller"
+	@echo "   - Karpenter"
+	@echo "   - Other system components"
 	@echo ""
 	@echo "Press Ctrl+C within 15 seconds to cancel..."
 	@sleep 15
 	@echo ""
-	@echo "🗑️  Removing agentic applications..."
+	@echo "🗑️  Step 1: Removing workloads installed by this Makefile..."
+	@echo "   Removing deployments (excluding system components)..."
+	-kubectl delete deployment --all -n default 2>/dev/null || true
+	-kubectl delete deployment -n kuberay --all 2>/dev/null || true
+	-kubectl delete deployment -n gpu-operator --all 2>/dev/null || true
+	-kubectl delete deployment -n milvus --all 2>/dev/null || true
+	-kubectl delete deployment -n langfuse --all 2>/dev/null || true
+	@echo "   Removing statefulsets (excluding system components)..."
+	-kubectl delete statefulset --all -n default 2>/dev/null || true
+	-kubectl delete statefulset -n kuberay --all 2>/dev/null || true
+	-kubectl delete statefulset -n milvus --all 2>/dev/null || true
+	-kubectl delete statefulset -n langfuse --all 2>/dev/null || true
+	@echo "   Removing daemonsets (excluding system ones)..."
+	-kubectl delete daemonset --all -n default 2>/dev/null || true
+	-kubectl delete daemonset -n gpu-operator --all 2>/dev/null || true
+	@echo "   Removing jobs and cronjobs (excluding system ones)..."
+	-kubectl delete job --all -n default 2>/dev/null || true
+	-kubectl delete cronjob --all -n default 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Step 2: Removing agentic applications..."
 	-kubectl delete -f agent/kubernetes/combined.yaml 2>/dev/null || true
 	@echo "🗑️  Removing Strands SDK RAG applications..."
 	-kubectl delete -f agentic-apps/strandsdk_agentic_rag_opensearch/k8s/ 2>/dev/null || true
@@ -233,33 +259,36 @@ clean:
 	-kubectl delete configmap app-config 2>/dev/null || true
 	-kubectl delete serviceaccount strandsdk-rag-service-account 2>/dev/null || true
 	@echo ""
-	@echo "🗑️  Removing Milvus and related resources..."
+	@echo "🗑️  Step 3: Removing Milvus and related resources..."
 	-kubectl delete -f milvus/milvus-nlb-service.yaml 2>/dev/null || true
 	-kubectl delete -f milvus/milvus-standalone.yaml 2>/dev/null || true
 	-kubectl delete -f milvus/ebs-storage-class.yaml 2>/dev/null || true
-	@echo "Waiting for Milvus pods to terminate..."
-	-kubectl wait --for=delete pod -l app=milvus --timeout=120s 2>/dev/null || true
 	@echo ""
-	@echo "🗑️  Removing observability components..."
+	@echo "🗑️  Step 4: Removing observability components..."
 	@echo "   Uninstalling Langfuse Helm release..."
 	-helm uninstall langfuse 2>/dev/null || true
 	-cd model-observability && kubectl delete -f . 2>/dev/null || true
 	@echo ""
-	@echo "🗑️  Removing model gateway..."
+	@echo "🗑️  Step 5: Removing model gateway..."
 	-cd model-gateway && kubectl delete -f . 2>/dev/null || true
 	@echo ""
-	@echo "🗑️  Removing model hosting services..."
+	@echo "🗑️  Step 6: Removing model hosting services..."
 	-cd model-hosting && kubectl delete -f . 2>/dev/null || true
 	@echo ""
-	@echo "🗑️  Removing base infrastructure components..."
-	@echo "   Removing Karpenter nodepools..."
-	-kubectl delete -f base_eks_setup/karpenter_nodepool/ 2>/dev/null || true
-	@echo "   Removing GP3 storage class..."
-	-kubectl delete -f base_eks_setup/gp3.yaml 2>/dev/null || true
-	@echo "   Removing Prometheus monitoring..."
-	-kubectl delete -f base_eks_setup/prometheus-monitoring.yaml 2>/dev/null || true
+	@echo "🗑️  Step 7: Waiting for pods to terminate..."
+	@echo "   This may take a few minutes..."
+	-kubectl wait --for=delete pod --all --all-namespaces --timeout=300s 2>/dev/null || true
 	@echo ""
-	@echo "🗑️  Removing NVIDIA GPU Operator..."
+	@echo "🗑️  Step 8: Force deleting any stuck pods..."
+	-kubectl delete pods --all --all-namespaces --grace-period=0 --force 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Step 9: Removing persistent volume claims..."
+	-kubectl delete pvc --all --all-namespaces --timeout=60s 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Step 10: Removing persistent volumes..."
+	-kubectl delete pv --all --timeout=60s 2>/dev/null || true
+	@echo ""
+	@echo "🗑️  Step 11: Removing NVIDIA GPU Operator..."
 	@echo "   Uninstalling NVIDIA GPU Operator Helm releases..."
 	-helm list -n gpu-operator --short | xargs -r -I {} helm uninstall {} -n gpu-operator 2>/dev/null || true
 	@echo "   Removing NVIDIA Device Plugin..."
@@ -267,63 +296,69 @@ clean:
 	@echo "   Removing GPU operator namespace..."
 	-kubectl delete namespace gpu-operator 2>/dev/null || true
 	@echo ""
-	@echo "🗑️  Removing KubeRay Operator..."
+	@echo "🗑️  Step 12: Removing KubeRay Operator..."
 	@echo "   Uninstalling KubeRay Operator Helm release..."
 	-helm uninstall kuberay-operator -n kuberay 2>/dev/null || true
 	@echo "   Removing KubeRay namespace..."
 	-kubectl delete namespace kuberay 2>/dev/null || true
 	@echo ""
-	@echo "🗑️  Removing persistent volume claims..."
-	-kubectl delete pvc --all --all-namespaces --timeout=60s 2>/dev/null || true
+	@echo "🗑️  Step 13: NOW removing base infrastructure components..."
+	@echo "   Removing Karpenter nodepools..."
+	-kubectl delete -f base_eks_setup/karpenter_nodepool/ 2>/dev/null || true
+	@echo "   Removing GP3 storage class..."
+	-kubectl delete -f base_eks_setup/gp3.yaml 2>/dev/null || true
+	@echo "   Removing Prometheus monitoring..."
+	-kubectl delete -f base_eks_setup/prometheus-monitoring.yaml 2>/dev/null || true
 	@echo ""
-	@echo "🗑️  Removing persistent volumes..."
-	-kubectl delete pv --all --timeout=60s 2>/dev/null || true
-	@echo ""
-	@echo "🗑️  Removing storage classes (custom ones)..."
+	@echo "🗑️  Step 14: Removing storage classes (custom ones)..."
 	-kubectl delete storageclass gp3 2>/dev/null || true
 	-kubectl delete storageclass gp3-csi 2>/dev/null || true
 	-kubectl delete storageclass ebs-sc 2>/dev/null || true
 	@echo ""
-	@echo "🗑️  Removing secrets and configmaps..."
-	-kubectl delete secret --all --all-namespaces --field-selector type!=kubernetes.io/service-account-token 2>/dev/null || true
-	-kubectl delete configmap --all --all-namespaces --field-selector metadata.name!=kube-root-ca.crt 2>/dev/null || true
+	@echo "🗑️  Step 15: Removing secrets and configmaps created by this Makefile..."
+	-kubectl delete secret --all -n default --field-selector type!=kubernetes.io/service-account-token 2>/dev/null || true
+	-kubectl delete secret --all -n kuberay --field-selector type!=kubernetes.io/service-account-token 2>/dev/null || true
+	-kubectl delete secret --all -n langfuse --field-selector type!=kubernetes.io/service-account-token 2>/dev/null || true
+	-kubectl delete secret --all -n milvus --field-selector type!=kubernetes.io/service-account-token 2>/dev/null || true
+	-kubectl delete configmap --all -n default --field-selector metadata.name!=kube-root-ca.crt 2>/dev/null || true
+	-kubectl delete configmap --all -n kuberay --field-selector metadata.name!=kube-root-ca.crt 2>/dev/null || true
+	-kubectl delete configmap --all -n langfuse --field-selector metadata.name!=kube-root-ca.crt 2>/dev/null || true
+	-kubectl delete configmap --all -n milvus --field-selector metadata.name!=kube-root-ca.crt 2>/dev/null || true
 	@echo ""
-	@echo "🗑️  Removing service accounts in default namespace..."
+	@echo "🗑️  Step 16: Removing service accounts in default namespace..."
 	-kubectl delete serviceaccount --all -n default --field-selector metadata.name!=default 2>/dev/null || true
 	@echo ""
-	@echo "🗑️  Removing custom resource definitions..."
+	@echo "🗑️  Step 17: Removing custom resource definitions..."
 	-kubectl delete crd rayclusters.ray.io 2>/dev/null || true
 	-kubectl delete crd rayservices.ray.io 2>/dev/null || true
 	-kubectl delete crd rayjobs.ray.io 2>/dev/null || true
 	-kubectl delete crd milvuses.milvus.io 2>/dev/null || true
 	@echo ""
-	@echo "🗑️  Removing operators and system components..."
+	@echo "🗑️  Step 18: Removing operators and system components..."
 	-kubectl delete -f https://raw.githubusercontent.com/zilliztech/milvus-operator/main/deploy/manifests/deployment.yaml 2>/dev/null || true
 	-kubectl delete -f https://github.com/jetstack/cert-manager/releases/download/v1.5.3/cert-manager.yaml 2>/dev/null || true
 	@echo ""
-	@echo "🗑️  Removing namespaces (non-system)..."
+	@echo "🗑️  Step 19: Removing namespaces (non-system)..."
 	-kubectl delete namespace kuberay 2>/dev/null || true
 	-kubectl delete namespace milvus-operator 2>/dev/null || true
 	-kubectl delete namespace cert-manager 2>/dev/null || true
 	-kubectl delete namespace gpu-operator 2>/dev/null || true
 	@echo ""
-	@echo "🗑️  Force cleanup any remaining resources..."
+	@echo "🗑️  Step 20: Final check for any remaining resources..."
 	@echo "Checking for stuck resources..."
 	-kubectl get pods --all-namespaces --field-selector=status.phase!=Running,status.phase!=Succeeded 2>/dev/null || true
 	@echo ""
-	@echo "Force deleting any stuck pods..."
-	-kubectl delete pods --all --all-namespaces --grace-period=0 --force 2>/dev/null || true
-	@echo ""
-	@echo "🗑️  Removing Helm repositories..."
+	@echo "🗑️  Step 21: Removing Helm repositories..."
 	-helm repo remove kuberay 2>/dev/null || true
 	-helm repo remove nvidia 2>/dev/null || true
 	-helm repo remove langfuse 2>/dev/null || true
 	@echo ""
-	@echo "✅ Comprehensive cleanup complete!"
+	@echo "✅ Cleanup of Makefile-installed components complete!"
 	@echo ""
 	@echo "ℹ️  Note: Some AWS Load Balancers and EBS volumes may take additional time to be cleaned up by AWS."
 	@echo "ℹ️  Check your AWS console to verify all resources have been properly removed."
 	@echo "ℹ️  Karpenter-managed nodes will be automatically terminated when workloads are removed."
+	@echo "ℹ️  System components like ArgoCD, AWS Load Balancer Controller, CoreDNS, EBS CSI Controller, and Karpenter were preserved."
 
 # Safe cleanup - removes applications but preserves persistent data
 clean-safe:

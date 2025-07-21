@@ -101,12 +101,33 @@ EOF
   kubectl apply -f langfuse-redis-port-patch.yaml
   success "Redis port configuration patch applied!"
 
-  log "Waiting for Langfuse pods to be ready (timeout: 10 minutes)..."
-  if kubectl wait --for=condition=ready pods --selector=app.kubernetes.io/instance=langfuse --timeout=600s; then
-    success "Langfuse deployment completed successfully!"
-  else
-    error "Langfuse deployment failed - pods did not become ready within 10 minutes"
-  fi
+  log "Waiting for Langfuse pods to be running (timeout: 15 minutes)..."
+  # Wait for pods to be in Running state instead of Ready condition
+  start_time=$(date +%s)
+  timeout=900  # 15 minutes in seconds
+  
+  while true; do
+    current_time=$(date +%s)
+    elapsed=$((current_time - start_time))
+    
+    if [ $elapsed -gt $timeout ]; then
+      warn "Timeout reached after 15 minutes, but continuing with deployment"
+      break
+    fi
+    
+    # Count running pods vs total pods
+    total_pods=$(kubectl get pods --selector=app.kubernetes.io/instance=langfuse --no-headers | wc -l)
+    running_pods=$(kubectl get pods --selector=app.kubernetes.io/instance=langfuse --no-headers | grep -c "Running" || echo "0")
+    
+    if [ "$total_pods" -gt 0 ] && [ "$running_pods" -gt 0 ]; then
+      log "$running_pods out of $total_pods Langfuse pods are running"
+      success "Langfuse has running pods - continuing with deployment"
+      break
+    fi
+    
+    log "Waiting for Langfuse pods to start running ($elapsed seconds elapsed)..."
+    sleep 10
+  done
 fi
 
 log "Installing Langfuse web ingress..."

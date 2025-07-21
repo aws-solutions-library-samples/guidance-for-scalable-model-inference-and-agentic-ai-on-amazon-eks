@@ -482,17 +482,15 @@ ALB_ENDPOINT=$(kubectl get ingress strandsdk-rag-ingress-alb -o jsonpath='{.stat
 # Test the health endpoint
 curl -X GET "http://${ALB_ENDPOINT}/health"
 
-# Test a simple query
-curl -X POST "http://${ALB_ENDPOINT}/query" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "What is Bell'\''s palsy?",
-    "include_web_search": true
-  }'
-
 # Test knowledge embedding
-curl -X POST "http://${ALB_ENDPOINT}/embed-knowledge" \
-  -H "Content-Type: application/json"
+curl -X POST "http://${ALB_ENDPOINT}/embed" \
+  -H "Content-Type: application/json" \
+  -d '{"force_refresh": false}'
+
+# Force refresh all embeddings
+curl -X POST "http://${ALB_ENDPOINT}/embed" \
+  -H "Content-Type: application/json" \
+  -d '{"force_refresh": true}'
 
 # Test with a more complex medical query
 curl -X POST "http://${ALB_ENDPOINT}/query" \

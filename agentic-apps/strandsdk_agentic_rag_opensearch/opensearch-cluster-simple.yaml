@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Simple public-facing OpenSearch cluster with m7g.large.search instances for StrandsSDK RAG application'
+Description: 'Provide by Guidance for Scalable Model Inference and Agentic AI using Efficient and Accelerated Compute on Amazon EKS(solution ID xxxxxx)'
 
 Parameters:
   ClusterName:

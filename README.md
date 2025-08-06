@@ -59,7 +59,7 @@ aws sts get-caller-identity
 kubectl version --client
 
 # Verify Docker is running
-docker version
+docker ps
 
 # Check available AWS regions and quotas
 aws ec2 describe-regions

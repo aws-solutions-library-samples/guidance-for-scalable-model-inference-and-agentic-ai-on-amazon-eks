@@ -1,12 +1,13 @@
 # Makefile for Cost Effective and Scalable Model Inference on AWS Graviton with EKS
 # This Makefile automates the deployment of the complete ML inference solution
 
-.PHONY: help install setup-base setup-models setup-gateway setup-observability setup-idp setup-rag setup-rag-strands setup-milvus clean clean-pvcs clean-safe verify-cluster
+.PHONY: help install install-platform setup-base setup-models setup-gateway setup-observability setup-idp setup-rag setup-rag-strands setup-milvus clean clean-pvcs clean-safe verify-cluster
 
 # Default target
 help:
 	@echo "Available targets:"
-	@echo "  install           - Complete installation of all components"
+	@echo "  install           - Complete installation of all components including RAG Strands application"
+	@echo "  install-platform  - Install platform only (base, models, observability, gateway)"
 	@echo "  verify-cluster    - Verify EKS cluster access"
 	@echo "  setup-base        - Install base infrastructure components (includes GP3 with Immediate binding)"
 	@echo "  setup-models      - Deploy model hosting services"
@@ -21,6 +22,9 @@ help:
 	@echo "  clean-pvcs        - Remove only persistent volume claims and volumes"
 	@echo "  status            - Check deployment status"
 	@echo ""
+	@echo "🚀 Quick Start:"
+	@echo "  Run 'make install' for complete setup including the multi-agent RAG system"
+	@echo ""
 	@echo "Storage Configuration:"
 	@echo "  - GP3 storage class uses Immediate binding mode to prevent timeout issues"
 	@echo "  - This ensures StatefulSets and complex workloads provision volumes correctly"
@@ -29,21 +33,56 @@ help:
 	@echo "  - EKS cluster must be set up following AWS Solutions Guidance"
 	@echo "  - kubectl configured to access the cluster"
 	@echo "  - Required environment variables configured"
+	@echo "  - TAVILY_API_KEY for web search functionality"
 
-# Complete installation
-install: verify-cluster setup-base setup-models setup-observability setup-gateway
+# Complete installation including RAG Strands application
+install: verify-cluster setup-base setup-models setup-observability setup-gateway setup-rag-strands
 	@echo "✅ Complete installation finished!"
+	@echo ""
+	@echo "🎉 Your complete Agentic AI platform is now deployed with:"
+	@echo "   ✓ Base infrastructure (KubeRay, GPU operators, storage)"
+	@echo "   ✓ Model hosting services (Ray Serve, vLLM)"
+	@echo "   ✓ Observability tools (Langfuse)"
+	@echo "   ✓ Model gateway (LiteLLM proxy)"
+	@echo "   ✓ Multi-agent RAG system with Strands SDK"
+	@echo ""
+	@echo "🔧 Configuration completed during installation:"
+	@echo "   - LiteLLM proxy with unified API gateway"
+	@echo "   - Langfuse for LLM observability and tracing"
+	@echo "   - OpenSearch cluster for vector storage"
+	@echo "   - Multi-agent system with web search capabilities"
+	@echo ""
+	@echo "🚀 Your system is ready to use!"
+	@echo "   - Access the RAG application via the deployed ALB endpoint"
+	@echo "   - All agents include built-in OpenTelemetry tracing"
+	@echo "   - Web search integration with Tavily API"
+	@echo "   - Comprehensive observability through Langfuse"
+	@echo ""
+	@echo "📖 For detailed usage instructions, refer to the README documentation."
+
+# Platform-only installation (without RAG application)
+install-platform: verify-cluster setup-base setup-models setup-observability setup-gateway
+	@echo "✅ Platform installation finished!"
+	@echo ""
+	@echo "🎉 Your Agentic AI platform is now deployed with:"
+	@echo "   ✓ Base infrastructure (KubeRay, GPU operators, storage)"
+	@echo "   ✓ Model hosting services (Ray Serve, vLLM)"
+	@echo "   ✓ Observability tools (Langfuse)"
+	@echo "   ✓ Model gateway (LiteLLM proxy)"
 	@echo ""
 	@echo "Next steps:"
 	@echo "1. Configure LiteLLM:"
-	@echo "   - Access LiteLLM web interface"
+	@echo "   - Export the LiteLLM ingress ALB address:"
+	@echo "     export LITELLM_ALB_URL=\$$(kubectl get ingress litellm-ingress -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')"
+	@echo "   - Access LiteLLM web interface at http://\$$LITELLM_ALB_URL"
 	@echo "   - Login with username 'admin' and password 'sk-123456'"
 	@echo "   - Create a virtual key in 'Virtual Keys' section"
 	@echo "   - Mark 'All Team Models' for the models field"
-	@echo "   - Note down the key value"
+	@echo "   - Note down the key value for use in agentic applications"
 	@echo ""
 	@echo "2. Deploy agentic applications:"
-	@echo "   - Refer to the README for agentic application deployment"
+	@echo "   - Run 'make setup-rag-strands' for the multi-agent RAG system"
+	@echo "   - Or refer to the README for other agentic application options"
 
 # Verify cluster access
 verify-cluster:
@@ -88,11 +127,13 @@ setup-gateway: setup-observability
 	@echo "✅ Model gateway deployed"
 	@echo ""
 	@echo "⚠️  IMPORTANT: Configure LiteLLM after deployment:"
-	@echo "   1. Access LiteLLM web interface"
-	@echo "   2. Login with username 'admin' and password 'sk-123456'"
-	@echo "   3. Go to 'Virtual Keys' and create a new key"
-	@echo "   4. Mark 'All Team Models' for the models field"
-	@echo "   5. Store the generated secret key for agentic applications"
+	@echo "   1. Export the LiteLLM ingress ALB address:"
+	@echo "     export LITELLM_ALB_URL=\$$(kubectl get ingress litellm-ingress -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')"
+	@echo "   2. Access LiteLLM web interface"
+	@echo "   3. Login with username 'admin' and password 'sk-123456'"
+	@echo "   4. Go to 'Virtual Keys' and create a new key"
+	@echo "   5. Mark 'All Team Models' for the models field"
+	@echo "   6. Store the generated secret key for agentic applications"
 
 # Setup Intelligent Document Processing
 setup-idp:

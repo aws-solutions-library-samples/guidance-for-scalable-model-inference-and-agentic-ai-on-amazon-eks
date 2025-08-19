@@ -58,17 +58,15 @@ get_input() {
     eval "$var_name='$input'"
 }
 
-# Function to get sensitive input (hidden)
+# Function to get sensitive input (visible)
 get_secret_input() {
     local prompt="$1"
     local var_name="$2"
     
-    read -s -p "$prompt: " input
-    echo  # New line after hidden input
+    read -p "$prompt: " input
     while [ -z "$input" ]; do
         echo "This field is required."
-        read -s -p "$prompt: " input
-        echo
+        read -p "$prompt: " input
     done
     
     eval "$var_name='$input'"
@@ -525,10 +523,8 @@ main() {
     
     echo
     print_status "Optional Langfuse keys for observability (press Enter to skip):"
-    read -s -p "Enter Langfuse public key (optional): " LANGFUSE_PUBLIC_KEY
-    echo
-    read -s -p "Enter Langfuse secret key (optional): " LANGFUSE_SECRET_KEY
-    echo
+    read -p "Enter Langfuse public key (optional): " LANGFUSE_PUBLIC_KEY
+    read -p "Enter Langfuse secret key (optional): " LANGFUSE_SECRET_KEY
     
     # Set defaults for empty Langfuse keys
     LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY:-""}

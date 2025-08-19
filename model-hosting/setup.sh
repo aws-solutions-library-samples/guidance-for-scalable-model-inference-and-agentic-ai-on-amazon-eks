@@ -65,8 +65,7 @@ get_hugging_face_token() {
     
     # Prompt user for token
     echo -n "Please enter your Hugging Face token: "
-    read -s HF_TOKEN
-    echo
+    read HF_TOKEN
     
     if [ -z "$HF_TOKEN" ]; then
       error "Hugging Face token is required. Please provide a valid token."

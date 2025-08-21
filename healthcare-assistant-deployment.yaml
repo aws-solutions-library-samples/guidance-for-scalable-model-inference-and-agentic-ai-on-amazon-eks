@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: healthcare-assistant
+  labels:
+    app: healthcare-assistant
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: healthcare-assistant
+  template:
+    metadata:
+      labels:
+        app: healthcare-assistant
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: arm64
+      containers:
+      - name: healthcare-assistant
+        image: public.ecr.aws/j4m3t0a6/agents/healthcare-assistant:latest
+        ports:
+        - containerPort: 8501
+        env:
+        - name: LANGFUSE_PUBLIC_KEY
+          value: "your_langfuse_public_key_here"
+        - name: LANGFUSE_SECRET_KEY
+          value: "your_langfuse_secret_key_here"
+        - name: LANGFUSE_HOST
+          value: "http://langfuse-web:3000"
+        - name: LITELLM_HOST
+          value: "http://litellm-graviton:4000/v1"
+        - name: MCP_HOST
+          value: "http://healthcare-mcp-server:8000/mcp"
+        - name: MODEL_ID
+          value: "claude-4-sonnet"
+        - name: CLINICAL_SESSION_ID
+          value: "clinical-session-k8s"
+        - name: HEALTHCARE_PROVIDER_ID
+          value: "healthcare-provider@clinical-assistant.k8s"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: healthcare-assistant-service
+spec:
+  selector:
+    app: healthcare-assistant
+  ports:
+    - port: 8501
+      targetPort: 8501
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: healthcare-assistant-ingress
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: healthcare-assistant-service
+              port:
+                number: 8501

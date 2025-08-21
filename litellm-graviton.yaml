@@ -1,0 +1,340 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: litellm-graviton
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: litellm-graviton
+  template:
+    metadata:
+      labels:
+        app: litellm-graviton
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: arm64
+      containers:
+      - name: litellm
+        image: ghcr.io/berriai/litellm:main-latest
+        args:
+          - "--config"
+          - "/app/config.yaml"
+          - "--port"
+          - "4000"
+          - "--num_workers"
+          - "1"
+        ports:
+        - containerPort: 4000
+        env:
+        - name: LITELLM_MASTER_KEY
+          valueFrom:
+            secretKeyRef:
+              name: litellm-secret
+              key: master-key
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: aws-credentials
+              key: access-key-id
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aws-credentials
+              key: secret-access-key
+        - name: AWS_DEFAULT_REGION
+          value: MY_REGION
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+        volumeMounts:
+        - name: config
+          mountPath: /app/config.yaml
+          subPath: config.yaml
+      volumes:
+      - name: config
+        configMap:
+          name: litellm-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: litellm-config
+data:
+  config.yaml: |
+    model_list:
+      # vLLM Models     
+      - model_name: llama3-8b
+        litellm_params:
+          model: openai/NousResearch/Meta-Llama-3.1-8B-Instruct
+          api_base: http://llama-vllm-neuron:8000/v1
+          api_key: "dummy-key"  # vLLM doesn't require a real API key
+          supports_function_calling: true 
+
+      # Amazon Bedrock Models
+      - model_name: claude-4-sonnet
+        litellm_params:
+          model: bedrock/us.anthropic.claude-sonnet-4-20250514-v1:0
+          aws_access_key_id: os.environ/AWS_ACCESS_KEY_ID
+          aws_secret_access_key: os.environ/AWS_SECRET_ACCESS_KEY
+          aws_region_name: os.environ/AWS_REGION_NAME
+      
+      # vLLM Models     
+      - model_name: my-model
+        litellm_params:
+          model: openai/NousResearch/Meta-Llama-3.1-8B-Instruct
+          api_base: http://llama-vllm-neuron:8000/v1
+          api_key: "dummy-key"  # vLLM doesn't require a real API key
+          supports_function_calling: true 
+
+      # Amazon Bedrock Models
+      - model_name: my-model
+        litellm_params:
+          model: bedrock/us.anthropic.claude-sonnet-4-20250514-v1:0
+          aws_access_key_id: os.environ/AWS_ACCESS_KEY_ID
+          aws_secret_access_key: os.environ/AWS_SECRET_ACCESS_KEY
+          aws_region_name: os.environ/AWS_REGION_NAME
+      
+    router_settings:
+      routing_strategy: simple-shuffle # Literal["simple-shuffle", "least-busy", "usage-based-routing","latency-based-routing"], default="simple-shuffle"
+    
+    general_settings:
+      master_key: os.environ/LITELLM_MASTER_KEY
+      database_url: "postgresql://litellm:postgrespassword@postgresql:5432/litellm"
+      store_model_in_db: true
+      
+    # Redis configuration for caching
+    cache:
+      type: "redis"
+      host: "redis"
+      port: 6379
+      password: "redispassword"
+      
+    # Optional: Add logging and monitoring
+    litellm_settings:
+      success_callback: ["langfuse"]
+      failure_callback: ["langfuse"]
+      set_verbose: true
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: litellm-secret
+type: Opaque
+data:
+  master-key: eW91ci1zZWNyZXQta2V5  # base64 encoded "your-secret-key"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aws-credentials
+type: Opaque
+data:
+  # Base64-encoded AWS credentials
+  access-key-id: MY_ACCESS_KEY  # PLACEHOLDER - UPDATE THIS!
+  # IMPORTANT: Replace this with your actual base64-encoded secret access key
+  # echo -n "your-actual-secret-access-key" | base64  
+  secret-access-key: MY_SECRET_KEY # PLACEHOLDER - UPDATE THIS!
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: litellm-graviton
+spec:
+  selector:
+    app: litellm-graviton
+  ports:
+  - port: 4000
+    targetPort: 4000
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: litellm-ingress
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: litellm-graviton
+              port:
+                number: 4000
+---
+# Redis Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: arm64
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: password
+        command:
+        - redis-server
+        - --requirepass
+        - $(REDIS_PASSWORD)
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+      volumes:
+      - name: redis-data
+        persistentVolumeClaim:
+          claimName: redis-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+spec:
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: redis-secret
+type: Opaque
+data:
+  password: cmVkaXNwYXNzd29yZA==  # base64 encoded "redispassword"
+---
+# Redis PersistentVolumeClaim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: auto-ebs-sc
+  resources:
+    requests:
+      storage: 5Gi
+---
+# PostgreSQL Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgresql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgresql
+  template:
+    metadata:
+      labels:
+        app: postgresql
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: arm64
+      containers:
+      - name: postgresql
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: "litellm"
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "256Mi"
+          limits:
+            cpu: "1"
+            memory: "1Gi"
+        volumeMounts:
+        - name: postgresql-data
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: postgresql-data
+        persistentVolumeClaim:
+          claimName: postgresql-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql
+spec:
+  selector:
+    app: postgresql
+  ports:
+  - port: 5432
+    targetPort: 5432
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgresql-secret
+type: Opaque
+data:
+  username: bGl0ZWxsbQ==  # base64 encoded "litellm"
+  password: cG9zdGdyZXNwYXNzd29yZA==  # base64 encoded "postgrespassword"
+---
+# PostgreSQL PersistentVolumeClaim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgresql-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: auto-ebs-sc
+  resources:
+    requests:
+      storage: 10Gi
+

@@ -1,0 +1,21 @@
+# Core Strands SDK dependencies for AI agent orchestration
+strands-agents[otel]>=0.1.0
+strands-agents-tools
+strands-agents[openai]
+
+# Langfuse tracing dependencies for clinical assistant monitoring
+langfuse>=2.0.0
+
+# MCP (Model Context Protocol) dependencies for healthcare data server
+mcp>=1.0.0
+
+# Environment and configuration management
+python-dotenv>=1.0.0
+
+# Standard library dependencies (usually included with Python but listed for completeness)
+# logging - built-in
+# os - built-in  
+# base64 - built-in
+# json - built-in
+# datetime - built-in
+# typing - built-in (Python 3.5+)

@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: healthcare-mcp-server
+  labels:
+    app: healthcare-mcp-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: healthcare-mcp-server
+  template:
+    metadata:
+      labels:
+        app: healthcare-mcp-server
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: arm64
+      containers:
+      - name: healthcare-mcp-server
+        image: public.ecr.aws/j4m3t0a6/agents/healthcare-mcp-server:latest
+        ports:
+        - containerPort: 8000
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: healthcare-mcp-server
+spec:
+  selector:
+    app: healthcare-mcp-server
+  ports:
+  - port: 8000
+    targetPort: 8000
+  type: ClusterIP

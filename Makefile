@@ -36,7 +36,7 @@ help:
 	@echo "  - TAVILY_API_KEY for web search functionality"
 
 # Complete installation including RAG Strands application
-install: verify-cluster setup-base setup-models setup-observability setup-gateway setup-rag-strands
+install: deploy-tracking-stack verify-cluster setup-base setup-models setup-observability setup-gateway setup-rag-strands
 	@echo "✅ Complete installation finished!"
 	@echo ""
 	@echo "🎉 Your complete Agentic AI platform is now deployed with:"
@@ -83,6 +83,19 @@ install-platform: verify-cluster setup-base setup-models setup-observability set
 	@echo "2. Deploy agentic applications:"
 	@echo "   - Run 'make setup-rag-strands' for the multi-agent RAG system"
 	@echo "   - Or refer to the README for other agentic application options"
+
+# Deploy tracking CloudFormation stack
+deploy-tracking-stack:
+	@echo "🚀 Deploying tracking CloudFormation stack to initialize project..."
+	aws cloudformation create-stack \
+		--stack-name tracking-project-stack \
+		--template-body file://tracking-stack.yaml \
+		--capabilities CAPABILITY_IAM || \
+	aws cloudformation update-stack \
+		--stack-name tracking-project-stack \
+		--template-body file://tracking-stack.yaml \
+		--capabilities CAPABILITY_IAM || true
+	@echo "✅ Tracking stack deployment initiated"
 
 # Verify cluster access
 verify-cluster:

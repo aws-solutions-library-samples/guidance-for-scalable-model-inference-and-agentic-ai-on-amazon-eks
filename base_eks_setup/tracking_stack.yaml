@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: '(SO9259) - Guidance for Scalable Model Inference and Agentic AI using Efficient and Accelerated Compute on Amazon EKS'
+Description: '(SO9150) - Guidance for Scalable Model Inference and Agentic AI using Efficient and Accelerated Compute on Amazon EKS'
 
 Outputs:
   ProjectStatus:

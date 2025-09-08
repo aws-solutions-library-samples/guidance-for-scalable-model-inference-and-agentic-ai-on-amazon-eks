@@ -69,10 +69,10 @@ aws service-quotas get-service-quota --service-code ec2 --quota-code L-1216C47A
 **Cost Awareness:** This solution will incur AWS charges. Review the cost breakdown section below and set up billing alerts before deployment.
 
 ## Infra Architecture
-![Architecture Diagram](image/infra_arch.png)
+![Architecture Diagram](image/Inference_GenAI_architecture_EKS.jpg)
 
 ## Agentic Application Architecture
-![Architecture Diagram](image/app_arch.png)
+![Architecture Diagram](image/Inference_GenAI_app_architecture_EKS.jpg)
 
 The architecture diagram illustrates our scalable ML inference solution with the following components:
 

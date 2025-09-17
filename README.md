@@ -156,6 +156,25 @@ The following table provides a sample cost breakdown for deploying this guidance
 
 For a more accurate estimate based on your specific configuration and usage patterns, we recommend using the [AWS Pricing Calculator](https://calculator.aws).
 
+## Third-Party Dependencies Disclaimer
+
+This sample code utilizes various third-party packages, modules, models, and datasets, including but not limited to:
+
+- Strands Agent SDK
+- Qwen3-14B
+- snowflake-arctic-embed-s model
+- LiteLLM
+- LangFuse
+- Medical Text for Text Classification public dataset
+
+**Important Notice:**
+- Amazon Web Services (AWS) is not associated to these third-party entities and their components.
+- The maintenance, updates, and security of these third-party dependencies are the sole responsibility of the customer/user.
+- Users should regularly review and update these dependencies to ensure security and compatibility.
+- Users are responsible for compliance with all applicable licenses and terms of use for these third-party components.
+
+Please review and comply with all relevant licenses and terms of service for each third-party component before using in your applications.
+
 ## Quick Start Guide
 
 The whole solution is including two parts, Agentic AI platform and Agentic AI application, let us go through the Agentic AI platform firstly 

@@ -10,7 +10,7 @@ export default class MilvusVectorStore {
     constructor() {
         // Connect to Milvus service through NLB
         this.client = new MilvusClient({
-            address: process.env.MILVUS_ADDRESS || 'k8s-default-milvusnl-fd87300847-5fa4d28f059626c9.elb.us-east-1.amazonaws.com:19530',
+            address: process.env.MILVUS_ADDRESS || '',
             username: process.env.MILVUS_USERNAME || '',
             password: process.env.MILVUS_PASSWORD || '',
         });
@@ -71,7 +71,7 @@ export default class MilvusVectorStore {
         try {
             // Create a new client for each insertion to avoid pool draining issues
             const insertClient = new MilvusClient({
-                address: process.env.MILVUS_ADDRESS || 'k8s-default-milvusnl-fd87300847-5fa4d28f059626c9.elb.us-east-1.amazonaws.com:19530',
+                address: process.env.MILVUS_ADDRESS || '',
                 username: process.env.MILVUS_USERNAME || '',
                 password: process.env.MILVUS_PASSWORD || '',
             });

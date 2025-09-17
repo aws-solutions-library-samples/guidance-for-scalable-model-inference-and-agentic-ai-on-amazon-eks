@@ -12,7 +12,7 @@ async function rebuildCollection() {
     try {
         // Connect to Milvus
         const client = new MilvusClient({
-            address: process.env.MILVUS_ADDRESS || 'k8s-default-milvusnl-fd87300847-5fa4d28f059626c9.elb.us-east-1.amazonaws.com:19530',
+            address: process.env.MILVUS_ADDRESS || '',
             username: process.env.MILVUS_USERNAME || '',
             password: process.env.MILVUS_PASSWORD || '',
         });

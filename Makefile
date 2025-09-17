@@ -89,11 +89,11 @@ deploy-tracking-stack:
 	@echo "🚀 Deploying tracking CloudFormation stack to initialize project..."
 	aws cloudformation create-stack \
 		--stack-name tracking-project-stack \
-		--template-body file://base_eks_setup/tracking-stack.yaml \
+		--template-body file://base_eks_setup/tracking_stack.yaml \
 		--capabilities CAPABILITY_IAM || \
 	aws cloudformation update-stack \
 		--stack-name tracking-project-stack \
-		--template-body file://base_eks_setup/tracking-stack.yaml \
+		--template-body file://base_eks_setup/tracking_stack.yaml \
 		--capabilities CAPABILITY_IAM || true
 	@echo "✅ Tracking stack deployment initiated"
 

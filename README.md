@@ -797,3 +797,8 @@ result = supervisor_agent(query)
 - **Async Warning Management**: Clean test runner filters harmless async cleanup warnings
 - **Robust Error Handling**: Fallback mechanisms ensure system reliability
 
+## Notices 
+
+Include below mandatory legal disclaimer for Guidance
+
+*Customers are responsible for making their own independent assessment of the information in this Guidance. This Guidance: (a) is for informational purposes only, (b) represents AWS current product offerings and practices, which are subject to change without notice, and (c) does not create any commitments or assurances from AWS and its affiliates, suppliers or licensors. AWS products or services are provided “as is” without warranties, representations, or conditions of any kind, whether express or implied. AWS responsibilities and liabilities to its customers are controlled by AWS agreements, and this Guidance is not part of, nor does it modify, any agreement between AWS and its customers.*

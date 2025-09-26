@@ -69,13 +69,17 @@ aws service-quotas get-service-quota --service-code ec2 --quota-code L-1216C47A
 
 **Cost Awareness:** This solution will incur AWS charges. Review the cost breakdown section below and set up billing alerts before deployment.
 
-## Infrastructure Architecture
+## Architecture
+
+### Infrastructure Architecture
 ![Architecture Diagram](image/Inference_GenAI_architecture_EKS.jpg)
+_Figure1. Reference Architecture for EKS cluster with add-ons_
 
-## Agentic Application Architecture
+### Agentic Application Architecture
 ![Architecture Diagram](image/Inference_GenAI_app_architecture_EKS.jpg)
+_Figure2. Reference Architecture Gen AI applications deployed on the EKS cluster_
 
-The architecture diagram illustrates our scalable ML inference solution with the following components:
+The architecture diagrams illustrate our scalable ML inference solution with the following components:
 
 1. **Amazon EKS Cluster**: The foundation of our architecture, providing a managed Kubernetes environment with automated provisioning and configuration.
    

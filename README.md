@@ -3,7 +3,6 @@
 ## Table of Contents
 
 - [Overview](#overview)
-- [Important Setup Instructions](#️-important-setup-instructions)
 - [Architecture](#architecture)
 - [Architecture Steps](#architecture-steps)
 - [Plan Your Deployment](#plan-your-deployment)
@@ -11,6 +10,7 @@
   - [Sample Cost Table](#sample-cost-table)
   - [Third party dependencies disclaimer](#third-party-dependencies-disclaimer)
 - [Quick Start Guide](#quick-start-guide)
+  - [Important Setup Instructions](#️-important-setup-instructions)
   - [Option 1: Automated Setup with Makefile (Recommended)](#option-1-automated-setup-with-makefile-recommended)
     - [Prerequisites](#prerequisites)
     - [How to Create a Hugging Face Token](#how-to-create-a-hugging-face-token)
@@ -40,34 +40,6 @@
 ## Overview
 This solution implements a comprehensive, scalable ML inference architecture using Amazon EKS, leveraging both Graviton processors for cost-effective CPU-based inference and GPU instances for accelerated inference. The system provides a complete end-to-end platform for deploying large language models with agentic AI capabilities, including RAG (Retrieval Augmented Generation) and intelligent document processing.
 
-## ⚠️ Important Setup Instructions
-
-**Before proceeding with this solution, ensure you have:**
-
-1. **AWS CLI configured** with appropriate permissions for EKS, ECR, CloudFormation, and other AWS services
-2. **kubectl installed** and configured to access your target AWS region
-3. **Docker installed** and running (required for building and pushing container images)
-4. **Sufficient AWS service quotas** - This solution requires multiple EC2 instances, EKS clusters, and other AWS resources
-5. **Valid Hugging Face token** - Required for accessing models (see instructions below)
-6. **Tavily API key** - Required for web search functionality in agentic applications
-
-**Recommended Setup Verification:**
-```bash
-# Verify AWS CLI access
-aws sts get-caller-identity
-
-# Verify kubectl installation
-kubectl version --client
-
-# Verify Docker is running
-docker ps
-
-# Check available AWS regions and quotas
-aws ec2 describe-regions
-aws service-quotas get-service-quota --service-code ec2 --quota-code L-1216C47A
-```
-
-**Cost Awareness:** This solution will incur AWS charges. Review the cost breakdown section below and set up billing alerts before deployment.
 
 ## Architecture
 
@@ -181,6 +153,35 @@ This sample code utilizes various third-party packages, modules, models, and dat
 Please review and comply with all relevant licenses and terms of service for each third-party component before using in your applications.
 
 ## Quick Start Guide
+
+### ⚠️ Important Setup Instructions
+
+**Before proceeding with this solution, ensure you have:**
+
+1. **AWS CLI configured** with appropriate permissions for EKS, ECR, CloudFormation, and other AWS services
+2. **kubectl installed** and configured to access your target AWS region
+3. **Docker installed** and running (required for building and pushing container images)
+4. **Sufficient AWS service quotas** - This solution requires multiple EC2 instances, EKS clusters, and other AWS resources
+5. **Valid Hugging Face token** - Required for accessing models (see instructions below)
+6. **Tavily API key** - Required for web search functionality in agentic applications
+
+**Recommended Setup Verification:**
+```bash
+# Verify AWS CLI access
+aws sts get-caller-identity
+
+# Verify kubectl installation
+kubectl version --client
+
+# Verify Docker is running
+docker ps
+
+# Check available AWS regions and quotas
+aws ec2 describe-regions
+aws service-quotas get-service-quota --service-code ec2 --quota-code L-1216C47A
+```
+
+**Cost Awareness:** This solution will incur AWS charges. Review the cost breakdown section below and set up billing alerts before deployment.
 
 The whole solution is including two parts, Agentic AI platform and Agentic AI application, let us go through the Agentic AI platform firstly 
 

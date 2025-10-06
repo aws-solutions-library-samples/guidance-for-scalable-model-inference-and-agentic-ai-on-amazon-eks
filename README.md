@@ -10,33 +10,12 @@
   - [Sample Cost Table](#sample-cost-table)
   - [Third party dependencies disclaimer](#third-party-dependencies-disclaimer)
 - [Quick Start Guide](#quick-start-guide)
-  - [Important Setup Instructions](#️-important-setup-instructions)
-  - [Option 1: Automated Setup with Makefile (Recommended)](#option-1-automated-setup-with-makefile-recommended)
-    - [Prerequisites](#prerequisites)
-    - [How to Create a Hugging Face Token](#how-to-create-a-hugging-face-token)
-    - [Complete Installation](#complete-installation)
-    - [Individual Components](#individual-components)
-    - [Utility Commands](#utility-commands)
-  - [Option 2: Manual Step-by-Step Setup](#option-2-manual-step-by-step-setup)
-    - [Step 1: Set Up EKS Cluster](#step-1-set-up-eks-cluster)
-    - [Step 2: Install Base Infrastructure Components](#step-2-install-base-infrastructure-components)
-    - [Step 3: Deploy Model Hosting Services](#step-3-deploy-model-hosting-services)
-    - [Step 4: Set Up Observability](#step-4-set-up-observability)
-    - [Step 5: Deploy Model Gateway](#step-5-deploy-model-gateway)
-- [Deploy Agentic Applications](#deploy-agentic-applications)
-  - [Multi-Agent RAG with Strands SDK and OpenSearch](#multi-agent-rag-with-strands-sdk-and-opensearch)
-  - [Key Features](#-key-features)
-  - [Usage](#️-usage)
-    - [Option 1: Container Deployment on Kubernetes (Recommended)](#option-1-container-deployment-on-kubernetesrecommended)
-    - [Option 2: Local Development](#option-2-local-development)
-  - [Observability & Tracing](#-observability--tracing)
-  - [Agent Workflows](#-agent-workflows)
-  - [Extending the System](#-extending-the-system)
-  - [Monitoring and Observability](#-monitoring-and-observability)
-  - [Example Use Cases](#-example-use-cases)
-  - [Architecture Benefits](#-architecture-benefits)
-  - [Key Improvements](#-key-improvements)
-
+  - [Important Setup Instructions](#️-important-setup-instructions)    
+- [Important Notes](#important-notes)
+    - [Architecture Benefits](#-architecture-benefits)
+    - [Key Improvements](#-key-improvements)
+- [Notices](#notices)
+    
 ## Overview
 This solution implements a comprehensive, scalable ML inference architecture using Amazon EKS, leveraging both Graviton processors for cost-effective CPU-based inference and GPU instances for accelerated inference. The system provides a complete end-to-end platform for deploying large language models with agentic AI capabilities, including RAG (Retrieval Augmented Generation) and intelligent document processing.
 
@@ -183,6 +162,10 @@ aws service-quotas get-service-quota --service-code ec2 --quota-code L-1216C47A
 
 **Cost Awareness:** This solution will incur AWS charges. Review the cost breakdown section below and set up billing alerts before deployment.
 
+>NOTE: For detailed instructions on Deployment options for this guidance, running model infrenece and Agentic AI workflows and uninstallation please see 
+this [Detailed Installation Guide](https://aws-solutions-library-samples.github.io/compute/scalabale-model-inference-and-agentic-ai-on-amazon-eks.html)
+
+<!--
 The whole solution is including two parts, Agentic AI platform and Agentic AI application, let us go through the Agentic AI platform firstly 
 
 We provide two approaches to set up the Agentic AI platform:
@@ -322,7 +305,6 @@ This installs:
 3. Create a project inside it named "demo"
 4. Go to "Tracing" menu and set up tracing
 5. Record the Public Key (PK) and Secret Key (SK) - you'll need these for the agentic applications
-
 
 #### Step 5: Deploy Model Gateway
 
@@ -777,8 +759,11 @@ query = "Analyze the medical documents and create a summary report saved to a fi
 result = supervisor_agent(query)
 # System will retrieve relevant docs, analyze them, and save results using MCP tools
 ```
+-->
 
-#### 🔍 Architecture Benefits
+## Important Notes
+
+### 🔍 Architecture Benefits
 
 1. **Modularity**: Each agent has specific responsibilities
 2. **Scalability**: Agents can be scaled independently  
@@ -787,7 +772,7 @@ result = supervisor_agent(query)
 5. **Observability**: Comprehensive monitoring and tracing via Strands SDK
 6. **Standards Compliance**: Uses MCP for tool integration and OpenTelemetry for tracing
 
-#### 🔧 Key Improvements
+### 🔧 Key Improvements
 
 ##### Unified Architecture
 - **Single Codebase**: No separate "enhanced" versions - all functionality is built into the standard agents
@@ -795,7 +780,7 @@ result = supervisor_agent(query)
 - **Simplified Deployment**: One main application with all features included
 - **Consistent API**: All agents use the same tracing and configuration patterns
 
-##### Enhanced Developer Experience
+#### Enhanced Developer Experience
 - **Automatic Instrumentation**: No manual trace management required
 - **Multiple Export Options**: Console, OTLP, Jaeger, Langfuse support out of the box
 - **Environment-based Configuration**: Easy setup through environment variables

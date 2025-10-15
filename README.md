@@ -195,10 +195,10 @@ Service quotas, also referred to as limits, are the maximum number of service re
 ### Quotas for AWS services in this Guidance
 
 Make sure you have sufficient quota for each of the AWS services implemented in this solution (see [AWS Services in this guidance](#aws-services-in-this-Guidance)).
-For more information, see [AWS service quotas](https://docs.aws.amazon.com/general/latest/gr/aws_service_limits.html){:target="_blank"}.
+For more information, see [AWS service quotas](https://docs.aws.amazon.com/general/latest/gr/aws_service_limits.html).
 
 To view the service quotas for all AWS services in the documentation without switching pages, view the information in the 
-[Service endpoints and quotas](https://docs.aws.amazon.com/general/latest/gr/aws-general.pdf#aws-service-information){:target="_blank"}
+[Service endpoints and quotas](https://docs.aws.amazon.com/general/latest/gr/aws-general.pdf#aws-service-information)
 page in the PDF format.
 
 

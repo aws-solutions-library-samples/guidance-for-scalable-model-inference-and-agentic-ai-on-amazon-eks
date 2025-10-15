@@ -8,6 +8,9 @@
 - [Plan Your Deployment](#plan-your-deployment)
   - [Cost](#cost)
   - [Sample Cost Table](#sample-cost-table)
+  - [Security](#security)
+  - [Supported AWS regions](#supported-aws-regions)
+  - [Service Quotas](#service-quotas)
   - [Third party dependencies disclaimer](#third-party-dependencies-disclaimer)
 - [Quick Start Guide](#quick-start-guide)
   - [Important Setup Instructions](#️-important-setup-instructions)    
@@ -111,6 +114,93 @@ The following table provides a sample cost breakdown for deploying this guidance
 | **TOTAL** |  | **$447.47/month** |
 
 For a more accurate estimate based on your specific configuration and usage patterns, we recommend using the [AWS Pricing Calculator](https://calculator.aws).
+
+## Security
+
+When you build systems on AWS infrastructure, security responsibilities are shared between you and AWS. 
+This [shared responsibility model](https://aws.amazon.com/compliance/shared-responsibility-model/) reduces your operational burden because AWS operates, manages, 
+and controls the components including the host operating system, the virtualization layer, and the physical security of the facilities in which the services operate. 
+For more information about AWS security, visit [AWS Cloud Security](http://aws.amazon.com/security/).
+
+This guidance implements several security best practices and AWS services to enhance the security posture of your EKS Workload Ready Cluster. Here are the key security components and considerations:
+
+### Identity and Access Management (IAM)
+
+- **IAM Roles**: The architecture uses predefined IAM roles (Cluster Admin, Admin, Edit, Read) to manage access to the EKS cluster resources. 
+This follows the principle of least privilege, ensuring users and services have only the permissions necessary to perform their tasks.
+- **EKS Managed Node Groups**: These use IAM roles with specific permissions required for nodes to join the cluster and for pods to access AWS services.
+
+### Network Security
+
+- **Amazon VPC**: The EKS cluster is deployed within a custom VPC with public and private subnets across multiple Availability Zones, providing network isolation.
+- **Security Groups**: Although not explicitly shown in the diagram, security groups are typically used to control inbound and outbound traffic to EC2 instances and other resources within the VPC.
+- **NAT Gateways**: Deployed in public subnets to allow outbound internet access for resources in private subnets while preventing inbound access from the internet.
+
+### Data Protection
+
+- **Amazon EBS Encryption**: EBS volumes used by EC2 instances are typically encrypted to protect data at rest.
+- **AWS Key Management Service (KMS)**: Used for managing encryption keys for various services, including EBS volume encryption.
+
+### Kubernetes-specific Security
+
+- **Kubernetes RBAC**: Role-Based Access Control is implemented within the EKS cluster to manage fine-grained access to Kubernetes resources.
+- **AWS Certificate Manager**: Integrated to manage SSL/TLS certificates for secure communication within the cluster.
+
+### Monitoring and Logging
+
+- **Amazon CloudWatch**: Used for monitoring and logging of AWS resources and applications running on the EKS cluster.
+- **Amazon Managed Grafana and Prometheus**: Provide additional monitoring and observability capabilities, helping to detect and respond to security events.
+
+### Container Security
+
+- **Amazon ECR**: Stores container images in a secure, encrypted repository. It includes vulnerability scanning to identify security issues in your container images.
+
+### Secrets Management
+
+- **AWS Secrets Manager**: While not explicitly shown in the diagram, it's commonly used to securely store and manage sensitive information such as database credentials, API keys, and other secrets used by applications running on EKS.
+
+### Additional Security Considerations
+
+- Regularly update and patch EKS clusters, worker nodes, and workload container images.
+- Implement network policies to control pod-to-pod communication within the cluster.
+- Use Pod Security Policies or Pod Security Standards to enforce security best practices for pods.
+- Implement proper logging and auditing mechanisms for both AWS and Kubernetes resources.
+- Regularly review and rotate IAM and Kubernetes RBAC permissions.
+
+## Supported AWS Regions
+
+Guidance for Scalable Model Inference and Agentic AI  on Amazon EKS is supported in the following AWS Regions:
+
+| Region Name | Region Code |
+|-------------|-------------|
+| US East (N. Virginia) | us-east-1 |
+| US East (Ohio) | us-east-2 |
+| US West (Oregon) | us-west-2 |
+| Asia Pacific (Mumbai) | ap-south-1 |
+| Asia Pacific (Seoul) | ap-northeast-2 |
+| Asia Pacific (Singapore) | ap-southeast-1 |
+| Asia Pacific (Sydney) | ap-southeast-2 |
+| Asia Pacific (Tokyo) | ap-northeast-1 |
+| Europe (Frankfurt) | eu-central-1 |
+| Europe (Ireland) | eu-west-1 |
+| Europe (London) | eu-west-2 |
+| Europe (Paris) | eu-west-3 |
+| Europe (Stockholm) | eu-north-1 |
+| South America (São Paulo) | sa-east-1 |
+
+## Service Quotas
+
+Service quotas, also referred to as limits, are the maximum number of service resources or operations for your AWS account.
+
+### Quotas for AWS services in this Guidance
+
+Make sure you have sufficient quota for each of the AWS services implemented in this solution (see [AWS Services in this guidance](#aws-services-in-this-Guidance)).
+For more information, see [AWS service quotas](https://docs.aws.amazon.com/general/latest/gr/aws_service_limits.html){:target="_blank"}.
+
+To view the service quotas for all AWS services in the documentation without switching pages, view the information in the 
+[Service endpoints and quotas](https://docs.aws.amazon.com/general/latest/gr/aws-general.pdf#aws-service-information){:target="_blank"}
+page in the PDF format.
+
 
 ## Third-Party Dependencies Disclaimer
 

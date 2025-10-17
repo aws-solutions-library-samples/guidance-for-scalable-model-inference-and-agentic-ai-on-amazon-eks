@@ -1,0 +1,80 @@
+---
+# x86 Node Pool for x86-based workloads
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: x86-inference
+spec:
+  limits:
+    cpu: 512
+    memory: 4096Gi
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 30s
+  template:
+    metadata:
+      labels:
+        model-inferencing: "x86-inference"
+        ray-control-plane: "false"
+    spec:
+      nodeClassRef:
+        group: eks.amazonaws.com
+        kind: NodeClass
+        name: x86-inference  
+      expireAfter: 8h  
+      taints:
+        - key: "model-inferencing"
+          value: "x86-inference"
+          effect: NoSchedule
+      expireAfter: 8h
+      requirements:
+        - key: karpenter.k8s.aws/instance-category
+          operator: In
+          values:
+          - c
+          - m
+          - r
+        - key: karpenter.k8s.aws/instance-generation
+          operator: Gt
+          values: ["6"]
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+        - key: kubernetes.io/os
+          operator: In
+          values: ["linux"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+---
+# X86 Node class
+apiVersion: eks.amazonaws.com/v1
+kind: NodeClass
+metadata:
+  name: x86-inference
+spec:
+  #ephemeral storage spec below
+  ephemeralStorage:
+    iops: 16000
+    size: 100Gi
+    throughput: 1000
+  networkPolicy: DefaultAllow
+  networkPolicyEventLogs: Disabled
+  #role: inference-cluster-am-eks-auto-20251009204412656600000004
+  role: ${CLUSTER_NAME}-eks-auto
+  securityGroupSelectorTerms:
+    - tags:
+        #Name: inference-cluster-am-node
+        Name: ${CLUSTER_NAME}-default
+  snatPolicy: Random
+  subnetSelectorTerms:
+    - tags:
+        Name: ${CLUSTER_NAME}-private-*
+        karpenter.sh/discovery: ${CLUSTER_NAME}
+  tags:
+    Name: karpenter-x86-karpenter
+    Environment: dev
+    karpenter.sh/discovery: ${CLUSTER_NAME}
+    model-inferencing: "x86-inference"
+    ray-control-plane: "false"
+    Provisioned-By: aws-solutions-library-samples/guidance-for-automated-provisioning-of-application-ready-amazon-eks-clusters

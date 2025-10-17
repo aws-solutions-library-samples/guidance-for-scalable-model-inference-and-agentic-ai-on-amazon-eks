@@ -1,0 +1,87 @@
+# GPU Node Pool for ML inference workloads
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: gpu-inference
+spec:
+  limits:
+    cpu: 1024
+    memory: 8192Gi
+  disruption:
+    budgets:
+      - nodes: 10%
+    consolidateAfter: 300s
+    consolidationPolicy: WhenEmpty
+  template:
+    metadata: 
+      labels:
+        model-inferencing: "gpu-inference"
+        ray-control-plane: "false"
+        nvidia.com/gpu: "present"
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+    spec:
+      expireAfter: 336h
+      nodeClassRef:
+        group: eks.amazonaws.com
+        kind: NodeClass
+        name: gpu-inference
+      requirements:
+        - key: eks.amazonaws.com/instance-family
+          operator: In
+          values:
+            - g5
+        - key: eks.amazonaws.com/instance-size
+          operator: In
+          values:
+            - 2xlarge
+            - 4xlarge
+            - 8xlarge
+            - 12xlarge
+            - 16xlarge
+            - 24xlarge
+            - 48xlarge
+        - key: kubernetes.io/arch
+          operator: In
+          values:
+            - amd64
+      taints:
+        - effect: NoSchedule
+          key: nvidia.com/gpu
+          value: Exists
+      terminationGracePeriod: 48h
+  weight: 100
+
+---
+# GPU Node Pool for ML inference workloads
+apiVersion: eks.amazonaws.com/v1
+kind: NodeClass
+metadata:
+  name: gpu-inference
+spec:
+  #ephemeral storage spec below
+  ephemeralStorage:
+    iops: 10000
+    size: 500Gi
+    throughput: 512
+  networkPolicy: DefaultAllow
+  networkPolicyEventLogs: Disabled
+  #role: inference-cluster-am-eks-auto-20251009204412656600000004
+  role: ${CLUSTER_NAME}-eks-auto
+  securityGroupSelectorTerms:
+    - tags:
+        #Name: inference-cluster-am-node
+        Name: ${CLUSTER_NAME}-default
+  snatPolicy: Random
+  subnetSelectorTerms:
+    - tags:
+        Name: ${CLUSTER_NAME}-private-*
+        karpenter.sh/discovery: ${CLUSTER_NAME}
+  tags:
+    Name: karpenter-g5-gpu-karpenter
+    Environment: dev
+    karpenter.sh/discovery: ${CLUSTER_NAME}
+    model-inferencing: "gpu-inference"
+    ray-control-plane: "false"
+    Provisioned-By: aws-solutions-library-samples/guidance-for-automated-provisioning-of-application-ready-amazon-eks-clusters
+  

@@ -1,0 +1,83 @@
+---
+# Graviton Node Pool for ARM-based workloads
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: graviton-inference
+spec:
+  limits:
+    cpu: 512
+    memory: 4096Gi
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 30m
+  template:
+    metadata:
+      labels:
+        model-inferencing: "graviton-inference"
+        ray-control-plane: "false"
+    spec:
+      nodeClassRef:
+        group: eks.amazonaws.com
+        kind: NodeClass
+        name: graviton-inference  
+      expireAfter: 8h
+      requirements:
+       
+        - key: eks.amazonaws.com/instance-family
+          operator: In
+          values:
+            - c
+            - m
+            - r
+        - key: eks.amazonaws.com/instance-size
+          operator: In
+          values:
+            - 2xlarge
+            - 4xlarge
+            - 8xlarge
+            - 12xlarge
+            - 16xlarge
+        - key: kubernetes.io/arch
+          operator: In
+          values:
+            - amd64  
+        - key: kubernetes.io/os
+          operator: In
+          values: 
+            - linux
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+---
+# Graviton NodeClass
+apiVersion: eks.amazonaws.com/v1
+kind: NodeClass
+metadata:
+  name: graviton-inference
+spec:
+  #ephemeral storage spec below
+  ephemeralStorage:
+    iops: 10000
+    size: 100Gi
+    throughput: 256
+  networkPolicy: DefaultAllow
+  networkPolicyEventLogs: Disabled
+  #role: inference-cluster-am-eks-auto-20251009204412656600000004
+  role: ${CLUSTER_NAME}-eks-auto
+  securityGroupSelectorTerms:
+    - tags:
+        #Name: inference-cluster-am-node
+        Name: ${CLUSTER_NAME}-default
+  snatPolicy: Random
+  subnetSelectorTerms:
+    - tags:
+        Name: ${CLUSTER_NAME}-private-*
+        karpenter.sh/discovery: ${CLUSTER_NAME}
+  tags:
+    Name: karpenter-graviton-karpenter
+    Environment: dev
+    karpenter.sh/discovery: ${CLUSTER_NAME}
+    model-inferencing: "graviton-inference"
+    ray-control-plane: "false"
+    Provisioned-By: aws-solutions-library-samples/guidance-for-automated-provisioning-of-application-ready-amazon-eks-clusters

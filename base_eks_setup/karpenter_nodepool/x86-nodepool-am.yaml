@@ -28,13 +28,13 @@ spec:
           effect: NoSchedule
       expireAfter: 8h
       requirements:
-        - key: karpenter.k8s.aws/instance-category
+        - key: eks.amazonaws.com/instance-family
           operator: In
           values:
           - c
           - m
           - r
-        - key: karpenter.k8s.aws/instance-generation
+        - key: eks.amazonaws.com/instance-generation
           operator: Gt
           values: ["6"]
         - key: kubernetes.io/arch
@@ -46,6 +46,15 @@ spec:
         - key: karpenter.sh/capacity-type
           operator: In
           values: ["on-demand"]
+        - key: eks.amazonaws.com/instance-size
+          operator: In
+          values:
+            - 2xlarge
+            - 4xlarge
+            - 8xlarge
+            - 12xlarge
+            - 16xlarge
+
 ---
 # X86 Node class
 apiVersion: eks.amazonaws.com/v1
@@ -57,7 +66,7 @@ spec:
   ephemeralStorage:
     iops: 16000
     size: 100Gi
-    throughput: 1000
+    throughput: 512
   networkPolicy: DefaultAllow
   networkPolicyEventLogs: Disabled
   #role: inference-cluster-am-eks-auto-20251009204412656600000004

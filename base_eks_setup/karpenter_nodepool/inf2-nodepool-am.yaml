@@ -27,7 +27,7 @@ spec:
           effect: NoSchedule
       expireAfter: 8h
       requirements:
-        - key: karpenter.k8s.aws/instance-family
+        - key: eks.amazonaws.com/instance-family
           operator: In
           values: ["inf2"]
         - key: kubernetes.io/arch

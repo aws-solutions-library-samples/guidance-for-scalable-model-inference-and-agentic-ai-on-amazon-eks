@@ -11,7 +11,7 @@ spec:
   resources:
     requests:
       storage: 900Gi
-  storageClassName: gp3
+  #storageClassName: gp3
   volumeMode: Filesystem
 ---
 apiVersion: apps/v1

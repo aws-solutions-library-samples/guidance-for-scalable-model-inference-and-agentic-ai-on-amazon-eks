@@ -176,7 +176,6 @@ kind: Ingress
 metadata:
   name: strandsdk-rag-ingress-alb
   annotations:
-    kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/healthcheck-path: /health
@@ -192,6 +191,7 @@ metadata:
     alb.ingress.kubernetes.io/healthy-threshold-count: "2"
     alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
 spec:
+  ingressClassName: alb
   rules:
     - http:
         paths:

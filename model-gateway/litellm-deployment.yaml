@@ -273,6 +273,7 @@ spec:
       name: postgres-storage
     spec:
       accessModes: ["ReadWriteOnce"]
+      storageClassName: gp3  # Uses ebs.csi.eks.amazonaws.com provisioner for EKS Auto Mode
       resources:
         requests:
           storage: 1Gi

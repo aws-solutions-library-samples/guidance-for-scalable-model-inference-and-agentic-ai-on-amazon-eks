@@ -11,7 +11,7 @@ spec:
   resources:
     requests:
       storage: 900Gi
-  #storageClassName: gp3
+  storageClassName: gp3  # Uses ebs.csi.eks.amazonaws.com provisioner for EKS Auto Mode
   volumeMode: Filesystem
 ---
 apiVersion: apps/v1
@@ -32,15 +32,13 @@ spec:
     spec:
       # Updated nodeSelector to target GPU instances specifically
       nodeSelector:
-            kubernetes.io/arch: amd64
-            nvidia.com/gpu: present
-            karpenter.sh/nodepool: gpu-inference
-          # Updated tolerations to match the taint on the GPU nodepool
+        kubernetes.io/arch: amd64
+        nvidia.com/gpu: "true"
+      # Updated tolerations to match the taint on the GPU nodepool
       tolerations:
-          - key: "model-inferencing"
-            operator: "Equal"
-            value: "gpu-inference"
-            effect: "NoSchedule"
+        - key: "nvidia.com/gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
       volumes:
       - name: cache-volume
         persistentVolumeClaim:

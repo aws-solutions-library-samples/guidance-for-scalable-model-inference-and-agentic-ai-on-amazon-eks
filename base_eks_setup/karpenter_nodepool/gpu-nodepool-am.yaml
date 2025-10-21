@@ -21,7 +21,7 @@ spec:
       annotations:
         cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
     spec:
-      expireAfter: 336h
+      expireAfter: 16h
       nodeClassRef:
         group: eks.amazonaws.com
         kind: NodeClass
@@ -31,6 +31,7 @@ spec:
           operator: In
           values:
             - g5
+            - g6
         - key: eks.amazonaws.com/instance-size
           operator: In
           values:
@@ -44,7 +45,20 @@ spec:
         - key: kubernetes.io/arch
           operator: In
           values:
-            - amd64
+            - amd64 
+        - key: kubernetes.io/os
+          operator: In
+          values: 
+            - linux
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]    
+        - key: eks.amazonaws.com/instance-gpu-count
+          operator: In
+          values: ["4"]  
+        - key: eks.amazonaws.com/instance-gpu-manufacturer
+          operator: In
+          values: ["nvidia"]  
       taints:
         - effect: NoSchedule
           key: nvidia.com/gpu
@@ -78,7 +92,7 @@ spec:
         Name: ${CLUSTER_NAME}-private-*
         karpenter.sh/discovery: ${CLUSTER_NAME}
   tags:
-    Name: karpenter-g5-gpu-karpenter
+    #Name: karpenter-g5-gpu-karpenter
     Environment: dev
     karpenter.sh/discovery: ${CLUSTER_NAME}
     model-inferencing: "gpu-inference"

@@ -5,7 +5,8 @@ metadata:
   name: gp3
   annotations:
     storageclass.kubernetes.io/is-default-class: "true"
-provisioner: ebs.csi.eks.amazonaws.com
+#Compatble with EKS AutoMode    
+provisioner: ebs.csi.eks.amazonaws.com 
 parameters:
   type: gp3
   fsType: ext4

@@ -218,7 +218,7 @@ install_nvidia_gpu_operator() {
 # Note: Using Immediate binding mode instead of WaitForFirstConsumer to avoid
 # volume binding timeout issues that can occur with StatefulSets and complex scheduling
 install_gp3_storage() {
-  log "Installing GP3 storage class with Immediate binding mode..."
+  log "Installing AutoMode compatible GP3 storage class with Immediate binding mode..."
   
   if kubectl get storageclass gp3 &> /dev/null; then
     warn "GP3 storage class already exists. Checking configuration..."
@@ -251,7 +251,7 @@ install_gp3_storage() {
 
 # Install Karpenter node pools
 install_karpenter_nodepools() {
-  log "Installing Karpenter node pools..."
+  log "Installing Karpenter AutoMode node pools..."
   
   # Install all node pool configurations with environment variable substitution
   for nodepool_file in karpenter_nodepool/*.yaml; do
@@ -303,8 +303,8 @@ verify_installations() {
   fi
 
   
-  log "Verifying Karpenter node pools..."
-  kubectl get nodepools
+  log "Verifying Karpenter node pools and classes..."
+  kubectl get nodeclasses,nodepools
 }
 
 # Main execution
@@ -314,20 +314,22 @@ main() {
   
   check_prerequisites
   validate_eks_cluster
+  #this call will not be needed when switched to Inference Ready cluster
   install_kuberay_operator
+  #this call will not be needed when switched to Inference Ready cluster
   install_nvidia_gpu_operator
   install_nvidia_device_plugin  # Added NVIDIA device plugin installation
-  #install_gp3_storage
+  install_gp3_storage
   install_karpenter_nodepools
   verify_installations
   
   success "All components installed successfully!"
-  log "Your AutoMode EKS cluster now has KubeRay, NVIDIA GPU operators, NVIDIA device plugin, and Karpenter Node classes/pools installed."
+  log "Your AutoMode EKS cluster now has KubeRay, NVIDIA GPU operators, NVIDIA device plugin, and Karpenter Node Classes/Pools installed."
   log ""
-  #log "Storage Configuration:"
-  #log "  ✓ GP3 storage class configured with Immediate binding mode"
-  #log "  ✓ This prevents volume binding timeout issues with StatefulSets"
-  #log "  ✓ Compatible with both simple deployments and complex workloads"
+  log "Storage Configuration:"
+  log "  ✓ GP3 storage class configured with 'Immediate binding' mode"
+  log "  ✓ This prevents volume binding timeout issues with StatefulSets"
+  log "  ✓ Compatible with both simple deployments and complex workloads"
 }
 
 # Execute main function

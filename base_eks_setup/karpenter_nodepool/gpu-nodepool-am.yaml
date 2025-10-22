@@ -30,8 +30,7 @@ spec:
         - key: eks.amazonaws.com/instance-category
           operator: In
           values:
-            - g5
-            - g6
+            - g
         - key: eks.amazonaws.com/instance-size
           operator: In
           values:

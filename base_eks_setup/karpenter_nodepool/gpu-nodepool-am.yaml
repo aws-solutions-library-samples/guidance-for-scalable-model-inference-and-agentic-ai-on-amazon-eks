@@ -27,11 +27,9 @@ spec:
         kind: NodeClass
         name: gpu-inference
       requirements:
-        - key: eks.amazonaws.com/instance-category
+        - key: "eks.amazonaws.com/instance-category"
           operator: In
-          values:
-            - g5
-            - g6
+          values: ["g"]
         - key: eks.amazonaws.com/instance-size
           operator: In
           values:

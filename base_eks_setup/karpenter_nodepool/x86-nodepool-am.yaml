@@ -28,7 +28,7 @@ spec:
           effect: NoSchedule
       expireAfter: 8h
       requirements:
-        - key: eks.amazonaws.com/instance-family
+        - key: eks.amazonaws.com/instance-category
           operator: In
           values:
           - c

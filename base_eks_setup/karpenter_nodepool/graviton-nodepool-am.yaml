@@ -23,25 +23,20 @@ spec:
         name: graviton-inference  
       expireAfter: 8h
       requirements:
-       
-        - key: eks.amazonaws.com/instance-family
+        - key: eks.amazonaws.com/instance-category
           operator: In
           values:
             - c
             - m
-            - r
-        - key: eks.amazonaws.com/instance-size
-          operator: In
-          values:
-            - 2xlarge
-            - 4xlarge
-            - 8xlarge
-            - 12xlarge
-            - 16xlarge
+            - r       
+        #- key: eks.amazonaws.com/instance-size
+        - key: eks.amazonaws.com/instance-generation
+          operator: Gt
+          values: ["6"]
         - key: kubernetes.io/arch
           operator: In
           values:
-            - amd64  
+            - arm64
         - key: kubernetes.io/os
           operator: In
           values: 

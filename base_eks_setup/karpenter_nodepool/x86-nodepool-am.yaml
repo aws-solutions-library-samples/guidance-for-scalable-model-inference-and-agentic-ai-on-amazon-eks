@@ -69,7 +69,7 @@ spec:
   networkPolicy: DefaultAllow
   networkPolicyEventLogs: Disabled
   #role: inference-cluster-am-eks-auto-20251009204412656600000004
-  role: AmazonEKSAutoNodeRole
+  role: ${CLUSTER_NAME}-eks-auto
   securityGroupSelectorTerms:
     - tags:
         #Name: inference-cluster-am-node
@@ -79,6 +79,7 @@ spec:
     - tags:
         karpenter.sh/discovery: ${CLUSTER_NAME}
         kubernetes.io/role/internal-elb: "1"
+        Environment: "automode"
   tags:
     Name: karpenter-x86-karpenter
     Environment: dev

@@ -29,7 +29,8 @@ spec:
       requirements:
         - key: "eks.amazonaws.com/instance-category"
           operator: In
-          values: ["g"]
+          values:
+            - g
         - key: eks.amazonaws.com/instance-size
           operator: In
           values:

@@ -59,16 +59,16 @@ spec:
   networkPolicy: DefaultAllow
   networkPolicyEventLogs: Disabled
   #role: inference-cluster-am-eks-auto-20251009204412656600000004
-  role: ${CLUSTER_NAME}-eks-auto
+  role: AmazonEKSAutoNodeRole
   securityGroupSelectorTerms:
     - tags:
         #Name: inference-cluster-am-node
-        Name: ${CLUSTER_NAME}-default
+        Name: eks-cluster-sg-${CLUSTER_NAME}-*
   snatPolicy: Random
   subnetSelectorTerms:
     - tags:
-        Name: ${CLUSTER_NAME}-private-*
         karpenter.sh/discovery: ${CLUSTER_NAME}
+        kubernetes.io/role/internal-elb: "1"
   tags:
     Name: karpenter-graviton-karpenter
     Environment: dev

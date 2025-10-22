@@ -33,7 +33,7 @@ spec:
       # Updated nodeSelector to target GPU instances specifically
       nodeSelector:
         kubernetes.io/arch: amd64
-        nvidia.com/gpu: "true"
+        # nvidia.com/gpu: "true"
       # Updated tolerations to match the taint on the GPU nodepool
       tolerations:
         - key: "nvidia.com/gpu"

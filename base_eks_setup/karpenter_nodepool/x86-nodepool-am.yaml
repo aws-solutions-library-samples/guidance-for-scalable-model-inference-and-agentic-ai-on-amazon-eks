@@ -20,20 +20,19 @@ spec:
       nodeClassRef:
         group: eks.amazonaws.com
         kind: NodeClass
-        name: x86-inference  
-      expireAfter: 8h  
+        name: x86-inference
+      expireAfter: 8h
       taints:
         - key: "model-inferencing"
           value: "x86-inference"
           effect: NoSchedule
-      expireAfter: 8h
       requirements:
         - key: eks.amazonaws.com/instance-category
           operator: In
           values:
-          - c
-          - m
-          - r
+            - c
+            - m
+            - r
         - key: eks.amazonaws.com/instance-generation
           operator: Gt
           values: ["6"]
@@ -70,16 +69,16 @@ spec:
   networkPolicy: DefaultAllow
   networkPolicyEventLogs: Disabled
   #role: inference-cluster-am-eks-auto-20251009204412656600000004
-  role: ${CLUSTER_NAME}-eks-auto
+  role: AmazonEKSAutoNodeRole
   securityGroupSelectorTerms:
     - tags:
         #Name: inference-cluster-am-node
-        Name: ${CLUSTER_NAME}-default
+        Name: eks-cluster-sg-${CLUSTER_NAME}-*
   snatPolicy: Random
   subnetSelectorTerms:
     - tags:
-        Name: ${CLUSTER_NAME}-private-*
         karpenter.sh/discovery: ${CLUSTER_NAME}
+        kubernetes.io/role/internal-elb: "1"
   tags:
     Name: karpenter-x86-karpenter
     Environment: dev

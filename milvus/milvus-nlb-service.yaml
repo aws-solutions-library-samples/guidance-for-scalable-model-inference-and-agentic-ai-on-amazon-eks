@@ -6,6 +6,8 @@ metadata:
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-type: nlb
     service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    # EKS Auto Mode subnet selection
+    service.beta.kubernetes.io/aws-load-balancer-subnets: auto
 spec:
   type: LoadBalancer
   ports:

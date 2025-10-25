@@ -1,10 +1,13 @@
 echo "START SCALE INFERENCE AND AGENTIC APPS TEST on $(date)"
 echo "---------------------"
+#Health check: curl -X GET "http://k8s-default-strandsd-853813bef3-1508533455.us-east-1.elb.amazonaws.com/health"
+#Embed knowledge: curl -X POST "http://k8s-default-strandsd-853813bef3-1508533455.us-east-1.elb.amazonaws.com/embed" -H "Content-Type: application/json" -d '{"force_refresh": false}'
+#Complex query: curl -i -X POST "http://k8s-default-strandsd-853813bef3-1508533455.us-east-1.elb.amazonaws.com/query" -H "Content-Type: application/json" -d '{"question": "Find information about \"What was the purpose of the study on encainide and flecainide in patients with supraventricular arrhythmias\". Summarize this information and create a comprehensive story.Save the story and important information to a file named \"test1.md\" in the output directory as a beautiful markdown file.", "top_k": 3}' --max-time 600
 
 # Get the Application Load Balancer endpoint
 ALB_ENDPOINT=$(kubectl get ingress strandsdk-rag-ingress-alb -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 
-echo "ALB ENDPOINT: ${ALB_ENDPOINT}"
+echo "FOUND ALB ENDPOINT: ${ALB_ENDPOINT}"
 
 # Test the health endpoint
 echo "Test the MCP health endpoint: ${ALB_ENDPOINT}/health"
@@ -44,8 +47,4 @@ curl -X POST "http://${ALB_ENDPOINT}/query" \
   }' \
   --max-time 600
 echo "\---------"
-echo "END SCALABLE INFERENCE AND AGENTIC APPS on: $(date)"
-
-#Health check: curl -X GET "http://k8s-default-strandsd-68c6191426-1903627097.us-east-1.elb.amazonaws.com/health"
-#Embed knowledge: curl -X POST "http://k8s-default-strandsd-68c6191426-1903627097.us-east-1.elb.amazonaws.com/embed" -H "Content-Type: application/json" -d '{"force_refresh": false}'
-#Complex query: curl -i -X POST "http://k8s-default-strandsd-68c6191426-1903627097.us-east-1.elb.amazonaws.com/query" -H "Content-Type: application/json" -d '{"question": "Find information about \"What was the purpose of the study on encainide and flecainide in patients with supraventricular arrhythmias\". Summarize this information and create a comprehensive story.Save the story and important information to a file named \"test1.md\" in the output directory as a beautiful markdown file.", "top_k": 3}' --max-time 600
+echo "END SCALABLE INFERENCE AND AGENTIC APPS TEST on: $(date)"

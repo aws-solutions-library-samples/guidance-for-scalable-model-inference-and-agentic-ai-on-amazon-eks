@@ -192,11 +192,11 @@ spec:
           value: postgres://myuser:mypassword@postgres:5432/mydatabase      
 
         - name: LANGFUSE_SECRET_KEY
-          value: "sk-lf-b85c6cd2-3250-46bc-8370-d372b62e32f7"
+          value: "sk-lf-afe0247a-86ae-472a-8103-4ae0a80399e0"
         - name: LANGFUSE_PUBLIC_KEY
-          value: "pk-lf-12301ce3-f6fc-4190-a0b1-2e75404c147f"
+          value: "pk-lf-13d689ec-e83b-4671-8d4b-7f7a5ff346e4"
         - name: LANGFUSE_HOST
-          value: "http://k8s-default-langfuse-565b67a37d-83085396.us-west-2.elb.amazonaws.com"
+          value: "http://localhost:3000"
         - name: REDIS_HOST
           value: redis
         - name: REDIS_PORT

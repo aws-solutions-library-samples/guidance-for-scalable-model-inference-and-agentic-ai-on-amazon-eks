@@ -10,15 +10,14 @@ metadata:
     alb.ingress.kubernetes.io/healthcheck-port: "8000"
     alb.ingress.kubernetes.io/healthcheck-path: "/health"
     alb.ingress.kubernetes.io/success-codes: "200"
-    # EKS Auto Mode subnet selection
-    alb.ingress.kubernetes.io/subnets: auto
+
     # Optimized health check settings for Auto Mode
     alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
     alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "10"
     alb.ingress.kubernetes.io/healthy-threshold-count: "2"
     alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
 spec:
-  ingressClassName: alb
+  ingressClassName: auto-alb
   rules:
   - http:
       paths:

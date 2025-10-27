@@ -1,4 +1,4 @@
-echo "START SCALE INFERENCE AND AGENTIC APPS TEST on $(date)"
+echo "START SCALE INFERENCE AND AGENTIC APPS TEST at: $(date)"
 echo "---------------------"
 #Health check: curl -X GET "http://k8s-default-strandsd-853813bef3-1508533455.us-east-1.elb.amazonaws.com/health"
 #Embed knowledge: curl -X POST "http://k8s-default-strandsd-853813bef3-1508533455.us-east-1.elb.amazonaws.com/embed" -H "Content-Type: application/json" -d '{"force_refresh": false}'
@@ -7,31 +7,38 @@ echo "---------------------"
 # Get the Application Load Balancer endpoint
 ALB_ENDPOINT=$(kubectl get ingress strandsdk-rag-ingress-alb -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 
-echo "FOUND ALB ENDPOINT: ${ALB_ENDPOINT}"
+echo "DISCOVERED STRANDS AGENT ALB ENDPOINT: ${ALB_ENDPOINT}"
 
 # Test the health endpoint
-echo "Test the MCP health endpoint: ${ALB_ENDPOINT}/health"
+echo "Testing the MCP health endpoint: ${ALB_ENDPOINT}/health"
 echo ""
 curl -X GET "http://${ALB_ENDPOINT}/health"
 echo "\----------"
 
-# Test a simple query
-echo "Test a simple query http://${ALB_ENDPOINT}/query"
+# Test knowledge embedding
+echo "Testing knowledge embedding ENDPOINT: ${ALB_ENDPOINT}/embed.."
 echo ""
+curl -X POST "http://${ALB_ENDPOINT}/embed" \
+  -H "Content-Type: application/json" -d '{"force_refresh": false}'
+echo
+echo "--------"
+#-H "Content-Type: application/json" -d '{"force_refresh": false}'
+
+
+# Test a simple query
+echo "Testing simple query endpoint: http://${ALB_ENDPOINT}/query"
+echo "Query: What is Bell's palsy?"
+echo
 curl -X POST "http://${ALB_ENDPOINT}/query" \
   -H "Content-Type: application/json" \
   -d '{
-    "query": "What is Bell'\''s palsy?",
+    "question": "What is Bell'\''s palsy?",
     "include_web_search": true
   }'
-echo "\---------"
+#-H "Content-Type: application/json" -d '{"question": "Find information about
+echo
+echo "---------"
 
-# Test knowledge embedding
-echo "Test knowledge embedding ENDPOINT: ${ALB_ENDPOINT}/embed-knowledge.."
-echo ""
-curl -X POST "http://${ALB_ENDPOINT}/embed-knowledge" \
-  -H "Content-Type: application/json"
-echo "------"
 
 
 # Test with a more complex medical query
@@ -46,5 +53,6 @@ curl -X POST "http://${ALB_ENDPOINT}/query" \
     "top_k": 3
   }' \
   --max-time 600
-echo "\---------"
-echo "END SCALABLE INFERENCE AND AGENTIC APPS TEST on: $(date)"
+echo
+echo "---------"
+echo "END SCALABLE INFERENCE AND AGENTIC APPS TEST at: $(date)"

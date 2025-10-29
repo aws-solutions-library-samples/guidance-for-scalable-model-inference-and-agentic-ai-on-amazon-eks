@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: tavily-mcp-server
-        image: 412381761882.dkr.ecr.us-east-1.amazonaws.com/strandsdk-agentic-rag-mcp:latest
+        image: 
         # Fixed command to run MCP server directly with proper host binding
         command:
         - python

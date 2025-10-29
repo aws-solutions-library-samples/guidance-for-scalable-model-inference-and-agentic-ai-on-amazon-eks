@@ -19,7 +19,7 @@ spec:
       serviceAccountName: strandsdk-rag-service-account
       containers:
       - name: strandsdk-rag-app
-        image: 412381761882.dkr.ecr.us-east-1.amazonaws.com/strandsdk-agentic-rag-main:latest
+        image: 
         ports:
         - containerPort: 8000
           name: http

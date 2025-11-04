@@ -57,7 +57,7 @@ spec:
           values: ["on-demand"]    
         - key: eks.amazonaws.com/instance-gpu-count
           operator: In
-          values: ["2,4"]  
+          values: ["2","4"]  
         - key: eks.amazonaws.com/instance-gpu-manufacturer
           operator: In
           values: ["nvidia"]  

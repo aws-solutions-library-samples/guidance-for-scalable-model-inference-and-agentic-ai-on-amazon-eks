@@ -1,7 +1,7 @@
 apiVersion: nvidia.com/v1
 kind: ClusterPolicy
 metadata:
-  name: cluster-policy
+  name: nvidia-cluster-policy
 spec:
   toolkit:
     installDir: /opt/nvidia

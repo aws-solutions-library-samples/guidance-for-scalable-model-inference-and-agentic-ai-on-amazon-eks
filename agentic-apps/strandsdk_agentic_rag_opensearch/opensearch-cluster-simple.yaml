@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Provide by Guidance for Scalable Model Inference and Agentic AI using Efficient and Accelerated Compute on Amazon EKS(solution ID xxxxxx)'
+Description: 'OpenSearch cluster for Guidance for Scalable Model Inference and Agentic AI using Efficient and Accelerated Compute on Amazon EKS'
 
 Parameters:
   ClusterName:

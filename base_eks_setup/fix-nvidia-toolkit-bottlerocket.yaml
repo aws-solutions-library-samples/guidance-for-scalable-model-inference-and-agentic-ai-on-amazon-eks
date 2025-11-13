@@ -1,54 +1,12 @@
 apiVersion: nvidia.com/v1
 kind: ClusterPolicy
 metadata:
-  name: nvidia-cluster-policy
+  name: cluster-policy
 spec:
-  # Required daemonsets configuration
-  daemonsets:
-    tolerations:
-    - key: nvidia.com/gpu
-      operator: Exists
-      effect: NoSchedule
-    updateStrategy: RollingUpdate
-  
-  # Required operator configuration
-  operator:
-    defaultRuntime: containerd
-    use_ocp_driver_toolkit: false
-  
-  # Required driver configuration
-  driver:
-    enabled: true
-    useNvidiaDriverCRD: false
-  
-  # Required toolkit configuration
   toolkit:
-    enabled: true
     installDir: /opt/nvidia
-  
-  # Required device plugin configuration
-  devicePlugin:
-    enabled: true
-  
-  # Required GPU feature discovery configuration
-  gfd:
-    enabled: true
-  
-  # Required DCGM configuration
-  dcgm:
-    enabled: true
-  
-  # Required DCGM exporter configuration
-  dcgmExporter:
-    enabled: true
-  
-  # Required node status exporter configuration
-  nodeStatusExporter:
-    enabled: true
-  
-  # Host paths configuration for Bottlerocket compatibility
   hostPaths:
-    # Use /opt instead of /usr/local for Bottlerocket compatibility
-    # Bottlerocket has /usr/local as read-only, but /opt is writable
+    # Use /opt instead of /usr/local for BottleRocket compatibility
+    # BottleRocket has /usr/local as read-only, but /opt is writable
     rootFS: /
     driverInstallDir: /run/nvidia/driver

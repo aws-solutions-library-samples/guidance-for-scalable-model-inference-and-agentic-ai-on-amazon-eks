@@ -167,9 +167,9 @@ install_nvidia_device_plugin() {
     return
   fi
   
-  # Install cluster policy to allow creation of NVIDIA ToolKit driver folders on BottleRocket nodes:
-  log "Updating Cluster policy to allow installation of NVIDIA Toolkit on nodes.."
-  kubectl apply -f  fix-nvidia-toolkit-bottlerocket.yaml
+  # Patching cluster policy to allow creation of NVIDIA ToolKit driver folders on BottleRocket nodes:
+  log "Updating Cluster policy to allow installation of NVIDIA Toolkit on BottleRocket OS nodes.."
+  kubectl patch clusterpolicy cluster-policy --type merge --patch-file fix-nvidia-toolkit-bottlerocket.yaml
 
   # Install NVIDIA Device Plugin
   kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.17.2/deployments/static/nvidia-device-plugin.yml

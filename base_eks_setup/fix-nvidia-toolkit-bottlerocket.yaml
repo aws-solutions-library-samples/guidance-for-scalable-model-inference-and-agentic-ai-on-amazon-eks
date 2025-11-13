@@ -1,7 +1,7 @@
 apiVersion: nvidia.com/v1
 kind: ClusterPolicy
 metadata:
-  name: nvidia-cluster-policy
+  name: cluster-policy
 spec:
   # Required daemonsets configuration
   daemonsets:

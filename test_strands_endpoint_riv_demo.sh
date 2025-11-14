@@ -42,7 +42,7 @@ echo "---------"
 
 
 # Test with a more complex medical query
-echo "Test with a more complex medical query What is the most important aspect of initial treatment for Bell's palsy?"
+echo "Test with a more complex medical query: What is the most important aspect of initial treatment for Bell's palsy?"
 echo ""
 #"question": "Find information about \"What was the purpose of the study on encainide and flecainide in patients with supraventricular arrhythmias\". Summarize this information and create a comprehensi$
 

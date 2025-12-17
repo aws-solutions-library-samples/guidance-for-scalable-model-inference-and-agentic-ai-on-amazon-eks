@@ -135,24 +135,26 @@ install_kuberay_operator() {
   log "Installing KubeRay operator..."
   
   # Create namespace for KubeRay
-  kubectl create namespace kuberay --dry-run=client -o yaml | kubectl apply -f -
+  # kubectl create namespace kuberay --dry-run=client -o yaml | kubectl apply -f -
   
   # Add KubeRay Helm repository
-   helm repo add kuberay https://ray-project.github.io/kuberay-helm/
+  helm repo add kuberay https://ray-project.github.io/kuberay-helm/
   helm repo update
   
   # Check if KubeRay operator is already installed
- if helm list -n kuberay | grep kuberay-operator &> /dev/null; then
+  #Update for inference ready EKS cluster use kuberay-operator ns
+ if helm list -n kuberay-operator | grep kuberay-operator &> /dev/null; then
     warn "KubeRay operator is already installed. Upgrading..."
-    helm upgrade kuberay-operator kuberay/kuberay-operator -n kuberay
+    helm upgrade kuberay-operator kuberay/kuberay-operator -n kuberay-operator
   else
     # Install KubeRay operator
-    helm install kuberay-operator kuberay/kuberay-operator -n kuberay
+    log "Installing KubeRay operator from Helm chart..."
+    helm install kuberay-operator kuberay/kuberay-operator -n kuberay-operator
   fi
   
   # Wait for the operator to be ready
   log "Waiting for KubeRay operator to be ready..."
-  kubectl wait --for=condition=available --timeout=300s deployment/kuberay-operator -n kuberay
+  kubectl wait --for=condition=available --timeout=300s deployment/kuberay-operator -n kuberay-operator
   
   success "KubeRay operator installed successfully!"
 }
@@ -270,33 +272,33 @@ install_karpenter_nodepools() {
 
 # Verify installations
 verify_installations() {
-  log "Verifying KubeRay operator installation..."
-  kubectl get all -n kuberay
+  #log "Verifying KubeRay operator installation..."
+  #kubectl get all -n kuberay
   
-  log "Verifying NVIDIA GPU operator installation..."
-  kubectl get all -n gpu-operator
+  #log "Verifying NVIDIA GPU operator installation..."
+  #kubectl get all -n gpu-operator
   
-  log "Verifying NVIDIA Device Plugin installation..."
-  if kubectl get daemonset nvidia-device-plugin-daemonset -n kube-system &> /dev/null; then
-    success "NVIDIA Device Plugin daemonset is installed."
-    kubectl get pods -n kube-system | grep nvidia-device-plugin || true
-  else
-    warn "NVIDIA Device Plugin daemonset not found."
-  fi
+  #log "Verifying NVIDIA Device Plugin installation..."
+  #if kubectl get daemonset nvidia-device-plugin-daemonset -n kube-system &> /dev/null; then
+  #  success "NVIDIA Device Plugin daemonset is installed."
+  #  kubectl get pods -n kube-system | grep nvidia-device-plugin || true
+  #else
+  #  warn "NVIDIA Device Plugin daemonset not found."
+  #fi
   
-  log "Checking for RayCluster CRD..."
+  log "Checking for RayCluster Kubernetes CRD..."
   if kubectl get crd rayclusters.ray.io &> /dev/null; then
     success "RayCluster CRD is installed."
   else
     warn "RayCluster CRD not found. KubeRay operator might not be functioning correctly."
   fi
   
-  log "Checking for NVIDIA GPU operator components..."
-  if kubectl get pods -n gpu-operator | grep -q "nvidia-device-plugin"; then
-    success "NVIDIA device plugin found."
-  else
-    warn "NVIDIA device plugin not found. GPU operator might still be initializing."
-  fi
+  #log "Checking for NVIDIA GPU operator components..."
+  #if kubectl get pods -n gpu-operator | grep -q "nvidia-device-plugin"; then
+  #  success "NVIDIA device plugin found."
+  #else
+  #  warn "NVIDIA device plugin not found. GPU operator might still be initializing."
+  #fi
   
   log "Checking for GPU resources on nodes..."
   if kubectl get nodes -o=custom-columns=NAME:.metadata.name,GPU:.status.capacity.nvidia\\.com\\/gpu --no-headers | grep -v "<none>" &> /dev/null; then
@@ -319,16 +321,18 @@ main() {
   check_prerequisites
   validate_eks_cluster
   #this call will not be needed when switched to Inference Ready cluster
-  install_kuberay_operator
-  #this call will not be needed when switched to Inference Ready cluster
-  install_nvidia_gpu_operator
-  install_nvidia_device_plugin  # Added NVIDIA device plugin installation
+  #install_kuberay_operator
+  #this call will likely not be needed when switched to Inference Ready cluster
+  # Try commenting out NVIDIA GPU operator and device plugin
+  #install_nvidia_gpu_operator
+  #install_nvidia_device_plugin  # Added NVIDIA device plugin installation
   install_gp3_storage
   install_karpenter_nodepools
   verify_installations
   
-  success "All components installed successfully!"
-  log "Your AutoMode EKS cluster now has KubeRay, NVIDIA GPU operators, NVIDIA device plugin, and Karpenter Node Classes/Pools installed."
+  success "All Solution components installed successfully!"
+  #log "Your AutoMode EKS cluster now has KubeRay, NVIDIA GPU operators, NVIDIA device plugin, and Karpenter Node Classes/Pools installed."
+  log "✓ Your AutoMode EKS cluster now has KubeRay, GP3 storage driver and Karpenter Node Classes/Pools installed."
   log ""
   log "Storage Configuration:"
   log "  ✓ GP3 storage class configured with 'Immediate binding' mode"

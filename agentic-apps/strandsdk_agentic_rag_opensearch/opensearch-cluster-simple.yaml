@@ -36,7 +36,7 @@ Resources:
   ServiceAccountRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub '${ServiceAccountName}-new'
+      RoleName: !Sub '${ServiceAccountName}-newest'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:

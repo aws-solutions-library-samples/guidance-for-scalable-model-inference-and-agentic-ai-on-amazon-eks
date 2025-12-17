@@ -44,6 +44,14 @@ spec:
         - key: karpenter.sh/capacity-type
           operator: In
           values: ["on-demand"]
+        - key: eks.amazonaws.com/instance-size
+          operator: In
+          values:
+            - 2xlarge
+            - 4xlarge
+            - 8xlarge
+            - 12xlarge
+            - 16xlarge  
 ---
 # Graviton NodeClass
 apiVersion: eks.amazonaws.com/v1
@@ -59,21 +67,22 @@ spec:
   networkPolicy: DefaultAllow
   networkPolicyEventLogs: Disabled
   #role: inference-cluster-am-eks-auto-20251009204412656600000004
-  role: ${CLUSTER_NAME}-eks-auto
+  role: ${CLUSTER_NAME}-eks-auto-20251209194501631700000003
   securityGroupSelectorTerms:
+  #- id: sg-0aa207610e365e734
     - tags:
         #Name: inference-cluster-am-node
-        Name: eks-cluster-sg-${CLUSTER_NAME}-*
+       Name: eks-cluster-sg-${CLUSTER_NAME}-*
   snatPolicy: Random
   subnetSelectorTerms:
     - tags:
-        karpenter.sh/discovery: ${CLUSTER_NAME}
-        kubernetes.io/role/internal-elb: "1"
-        Environment: "automode"
+       Name: ${CLUSTER_NAME}-private-secondary-*
+       karpenter.sh/discovery: ${CLUSTER_NAME}
+       kubernetes.io/role/internal-elb: "1"
   tags:
     Name: karpenter-graviton-karpenter
     Environment: dev
     karpenter.sh/discovery: ${CLUSTER_NAME}
     model-inferencing: "graviton-inference"
     ray-control-plane: "false"
-    Provisioned-By: aws-solutions-library-samples/guidance-for-automated-provisioning-of-application-ready-amazon-eks-clusters
+    Provisioned-By: awslabs/ai-on-eks/tree/main/infra/solutions/inference-ready-cluster

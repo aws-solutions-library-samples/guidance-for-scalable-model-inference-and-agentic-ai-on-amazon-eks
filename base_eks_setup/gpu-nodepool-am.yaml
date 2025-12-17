@@ -100,5 +100,5 @@ spec:
     karpenter.sh/discovery: ${CLUSTER_NAME}
     model-inferencing: "gpu-inference"
     ray-control-plane: "false"
-    Provisioned-By: aws-solutions-library-samples/guidance-for-automated-provisioning-of-application-ready-amazon-eks-clusters
+    Provisioned-By: awslabs/ai-on-eks/tree/main/infra/solutions/inference-ready-cluster
   

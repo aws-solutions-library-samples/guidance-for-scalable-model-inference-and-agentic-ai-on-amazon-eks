@@ -267,7 +267,7 @@ install_karpenter_nodepools() {
     fi
   done
   
-  success "All Karpenter node pools installed successfully!"
+  success "All Karpenter node classes/pools installed successfully!"
 }
 
 # Verify installations
@@ -309,14 +309,14 @@ verify_installations() {
   fi
 
   
-  log "Verifying Karpenter node pools and classes..."
+  log "Verifying Karpenter node classes and pools..."
   kubectl get nodeclasses,nodepools
 }
 
 # Main execution
 main() {
   log "Starting validation and installation process..."
-  log "Detected EKS cluster name: $CLUSTER_NAME"
+  log "Detected Inference EKS cluster name: $CLUSTER_NAME"
   
   check_prerequisites
   validate_eks_cluster
@@ -327,12 +327,12 @@ main() {
   #install_nvidia_gpu_operator
   #install_nvidia_device_plugin  # Added NVIDIA device plugin installation
   install_gp3_storage
-  install_karpenter_nodepools
+  #install_karpenter_nodepools
   verify_installations
   
-  success "All Solution components installed successfully!"
+  success "All Solution Kubernetes components installed successfully!"
   #log "Your AutoMode EKS cluster now has KubeRay, NVIDIA GPU operators, NVIDIA device plugin, and Karpenter Node Classes/Pools installed."
-  log "✓ Your AutoMode EKS cluster now has KubeRay, GP3 storage driver and Karpenter Node Classes/Pools installed."
+  log "✓ Your AutoMode EKS cluster has KubeRay operator, GP3 storage driver and required Karpenter auto-scaling Node Classes/Pools installed."
   log ""
   log "Storage Configuration:"
   log "  ✓ GP3 storage class configured with 'Immediate binding' mode"

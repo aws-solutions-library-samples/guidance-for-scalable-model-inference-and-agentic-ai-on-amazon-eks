@@ -27,12 +27,12 @@ echo "--------"
 
 # Test a simple query
 echo "Testing simple query endpoint: http://${ALB_ENDPOINT}/query"
-echo "question: What is the weather is San Francisco today?"
+echo "question: What is the weather is Arnold, CA today?"
 echo
 curl -X POST "http://${ALB_ENDPOINT}/query" \
   -H "Content-Type: application/json" \
   -d '{
-    "question": "What is the weather is San Francisco today?",
+    "question": "What is the weather is Arnold, CA today?",
     "include_web_search": true
   }'
 #-H "Content-Type: application/json" -d '{"question": "Find information about

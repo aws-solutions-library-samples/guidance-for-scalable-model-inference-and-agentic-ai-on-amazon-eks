@@ -17,7 +17,7 @@ metadata:
     alb.ingress.kubernetes.io/healthy-threshold-count: "2"
     alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
 spec:
-  ingressClassName: auto-alb
+  ingressClassName: alb
   rules:
   - http:
       paths:

@@ -135,13 +135,13 @@ install_ray_llamacpp_embedding() {
 
 # Install standalone vLLM reasoning service
 install_standalone_vllm_reasoning() {
-  log "Installing standalone vLLM reasoning service..."
+  log "CHECK: Installing standalone vLLM reasoning service..."
   
   if [ -f "standalone-vllm-reasoning.yaml" ]; then
     kubectl apply -f standalone-vllm-reasoning.yaml
-    success "Standalone vLLM reasoning service deployed successfully!"
+    success "OK! Standalone vLLM reasoning service deployed successfully!"
   else
-    error "standalone-vllm-reasoning.yaml not found"
+    error "PROBLEM: standalone-vllm-reasoning.yaml not found"
   fi
 }
 
@@ -193,7 +193,7 @@ verify_installations() {
 
 # Main execution
 main() {
-  log "Starting model hosting deployment..."
+  log "Starting model hosting and Agentic AI deployment on the Inference Ready EKS cluster..."
   
   check_prerequisites
   get_hugging_face_token

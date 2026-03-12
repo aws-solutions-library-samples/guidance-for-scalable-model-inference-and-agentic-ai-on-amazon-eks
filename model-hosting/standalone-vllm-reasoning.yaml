@@ -11,7 +11,7 @@ spec:
   resources:
     requests:
       storage: 900Gi
-  storageClassName: gp3
+  storageClassName: gp3  # Uses ebs.csi.eks.amazonaws.com provisioner for EKS Auto Mode
   volumeMode: Filesystem
 ---
 apiVersion: apps/v1
@@ -30,17 +30,13 @@ spec:
       labels:
         app: vllm-qwen-server
     spec:
-      # Updated nodeSelector to target GPU instances specifically
       nodeSelector:
-            kubernetes.io/arch: amd64
-            nvidia.com/gpu: present
-            karpenter.sh/nodepool: gpu-inference
-          # Updated tolerations to match the taint on the GPU nodepool
+        karpenter.sh/nodepool: gpu
+        #accelerator: nvidia
       tolerations:
-          - key: "model-inferencing"
-            operator: "Equal"
-            value: "gpu-inference"
-            effect: "NoSchedule"
+        - key: "nvidia.com/gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
       volumes:
       - name: cache-volume
         persistentVolumeClaim:
@@ -52,8 +48,8 @@ spec:
           sizeLimit: "32Gi"
       containers:
       - name: vllm-qwen-server
-        image: vllm/vllm-openai:latest
-        # image: vllm/vllm-openai:v0.7.3
+        #image: vllm/vllm-openai:latest
+        image: public.ecr.aws/deep-learning-containers/vllm:0.12.0-gpu-py312-cu129-ubuntu22.04-ec2-v1.0-soci
         command: ["/bin/sh", "-c"]
         args: [
           "vllm serve Qwen/Qwen3-14B  --enable-auto-tool-choice --tool-call-parser hermes  --trust-remote-code --max-num-batched-tokens 32768  --max-num-seqs 8 --max-model-len 32768 --dtype bfloat16 --tensor-parallel-size 4 --gpu-memory-utilization 0.90"

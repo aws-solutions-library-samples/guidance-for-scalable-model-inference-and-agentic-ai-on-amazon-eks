@@ -11,7 +11,7 @@ spec:
   resources:
     requests:
       storage: 100Gi
-  storageClassName: gp3
+  storageClassName: gp3  # Uses ebs.csi.eks.amazonaws.com provisioner for EKS Auto Mode
   volumeMode: Filesystem
 ---
 apiVersion: apps/v1

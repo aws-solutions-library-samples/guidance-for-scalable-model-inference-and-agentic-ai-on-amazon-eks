@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'OpenSearch cluster for Scalable Model Inference and Agentic AI on Amazon EKS'
+Description: 'OpenSearch cluster for Scalable Model Inference and Agentic AI on Amazon EKS Solution'
 
 Parameters:
   ClusterName:
@@ -36,7 +36,7 @@ Resources:
   ServiceAccountRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub '${ServiceAccountName}-new'
+      # RoleName: !Sub '${ServiceAccountName}-newest'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -54,7 +54,7 @@ Resources:
   OpenSearchMasterPassword:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub '${ClusterName}-master-password'
+      # Name: !Sub '${ClusterName}-master-password'
       Description: 'Master password for OpenSearch cluster'
       GenerateSecretString:
         SecretStringTemplate: '{"username": "admin"}'
@@ -130,8 +130,8 @@ Resources:
         InternalUserDatabaseEnabled: true
         MasterUserOptions:
           MasterUserName: 'admin'
-          MasterUserPassword: !Sub '{{resolve:secretsmanager:${OpenSearchMasterPassword}:SecretString:password}}'
-      
+          MasterUserPassword: !Join ['', ['{{resolve:secretsmanager:', !Ref OpenSearchMasterPassword, ':SecretString:password}}']]
+
       # Node-to-node encryption
       NodeToNodeEncryptionOptions:
         Enabled: true
@@ -147,6 +147,7 @@ Resources:
           Value: 'production'
         - Key: Application
           Value: 'strandsdk-rag'
+    DependsOn: OpenSearchMasterPassword
 
 Outputs:
   OpenSearchDomainEndpoint:

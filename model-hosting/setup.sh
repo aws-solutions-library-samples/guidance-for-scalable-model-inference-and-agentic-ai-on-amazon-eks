@@ -133,6 +133,21 @@ install_ray_llamacpp_embedding() {
   fi
 }
 
+# Apply the NetworkPolicy that mitigates CVE-2023-48022 ("ShadowRay") by
+# restricting access to the unauthenticated Ray Dashboard/Jobs API (port 8265).
+# NOTE: This is only enforced if the cluster CNI supports NetworkPolicy
+# (e.g. EKS VPC CNI with network policy enabled, or Cilium).
+install_ray_dashboard_networkpolicy() {
+  log "Applying Ray dashboard NetworkPolicy (CVE-2023-48022 mitigation)..."
+
+  if [ -f "ray-services/ray-dashboard-networkpolicy.yaml" ]; then
+    kubectl apply -f ray-services/ray-dashboard-networkpolicy.yaml
+    success "Ray dashboard NetworkPolicy applied successfully!"
+  else
+    error "ray-dashboard-networkpolicy.yaml not found in ray-services directory"
+  fi
+}
+
 # Install standalone vLLM reasoning service
 install_standalone_vllm_reasoning() {
   log "CHECK: Installing standalone vLLM reasoning service..."
@@ -199,6 +214,7 @@ main() {
   get_hugging_face_token
   update_yaml_with_token
   install_ray_llamacpp_embedding
+  install_ray_dashboard_networkpolicy
   install_standalone_vllm_reasoning
   wait_for_services
   verify_installations

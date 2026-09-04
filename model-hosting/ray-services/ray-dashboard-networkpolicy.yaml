@@ -1,0 +1,113 @@
+# ============================================================================
+# SECURITY CONTROL for CVE-2023-48022 ("ShadowRay")
+# ----------------------------------------------------------------------------
+# The Ray Dashboard / Jobs API (port 8265) has NO authentication. A caller that
+# can reach 8265 can submit arbitrary jobs and obtain remote code execution on
+# the Ray workers, using whatever IAM/permissions the pods hold.
+#
+# This NetworkPolicy denies all ingress to the Ray head's dashboard port (8265)
+# and the Ray client port (10001) by default, and only allows it from pods that
+# are explicitly opted in via the label:
+#
+#     ray-jobs-client: "true"
+#
+# The inference serving path (ALB Ingress -> ray-service-llamacpp-serve-svc:8000)
+# is NOT affected, because this policy only restricts the dashboard/client ports.
+#
+# Prerequisites:
+#   * Your cluster must run a CNI that enforces NetworkPolicy.
+#     - EKS with the VPC CNI: enable network policy enforcement
+#       (`--enable-network-policy` / set ENABLE_NETWORK_POLICY=true on aws-node),
+#       or use Cilium.
+#   * NetworkPolicy is namespaced. Deploy this in the SAME namespace as the
+#     RayService (this repo applies the RayService to the current/default
+#     namespace; set `metadata.namespace` on both to match).
+#
+# How to grant a workload access to the Jobs API:
+#   Add the label to the pod template of any client that legitimately submits
+#   Ray jobs, e.g.:
+#       metadata:
+#         labels:
+#           ray-jobs-client: "true"
+#   (and, if it lives in another namespace, see the namespaceSelector note below).
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ray-dashboard-restrict-8265
+  # namespace: <set to the RayService namespace, e.g. default>
+  labels:
+    app.kubernetes.io/part-of: ray-service-llamacpp
+    security.amazon.com/mitigates: cve-2023-48022
+spec:
+  # Select the Ray head pod. The head pod template in
+  # ray-service-llamacpp-with-embedding.yaml carries this label.
+  podSelector:
+    matchLabels:
+      ray-control-plane: "true"
+  policyTypes:
+    - Ingress
+  ingress:
+    # Rule 1: allow the sensitive dashboard/client ports ONLY from explicitly
+    # opted-in job-submitting pods.
+    - from:
+        - podSelector:
+            matchLabels:
+              ray-jobs-client: "true"
+          # To also allow clients from OTHER namespaces, uncomment and label the
+          # namespace (kubectl label ns <ns> ray-jobs-client-ns=true):
+          # namespaceSelector:
+          #   matchLabels:
+          #     ray-jobs-client-ns: "true"
+      ports:
+        - protocol: TCP
+          port: 8265   # Ray Dashboard / Jobs API (RCE surface)
+        - protocol: TCP
+          port: 10001  # Ray client server (also allows remote task submission)
+    # Rule 2: allow intra-cluster Ray traffic that the RayCluster itself needs
+    # (head <-> workers): GCS and Serve/proxy. This keeps the cluster functional
+    # while still denying 8265/10001 to everything not matched by Rule 1.
+    - from:
+        - podSelector:
+            matchLabels:
+              # KubeRay labels all pods belonging to this RayCluster. Adjust the
+              # value if your RayService/RayCluster name differs.
+              ray.io/cluster: ray-service-llamacpp
+      ports:
+        - protocol: TCP
+          port: 6379   # GCS server (head <-> worker)
+        - protocol: TCP
+          port: 8000   # Ray Serve HTTP proxy (in-cluster)
+    # Rule 3: allow the ALB / kubelet health checks and serve traffic to reach
+    # the Serve port. Ingress health checks originate from the node/LB IPs, which
+    # are outside the pod CIDR, so we allow port 8000 from all sources here.
+    # (8000 is the authenticated-by-app serving path, NOT the Jobs API.)
+    - ports:
+        - protocol: TCP
+          port: 8000
+---
+# ----------------------------------------------------------------------------
+# Optional but recommended: an explicit default-deny for the head pod so that
+# ANY port not listed above is denied. The policy above already implies deny for
+# unlisted ports on the selected pod (an ingress policy selecting a pod denies
+# all ingress except what it allows). This second policy is kept separate only
+# to document intent; you can remove it if you prefer a single object.
+# ----------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ray-head-default-deny-ingress
+  # namespace: <set to the RayService namespace, e.g. default>
+  labels:
+    app.kubernetes.io/part-of: ray-service-llamacpp
+    security.amazon.com/mitigates: cve-2023-48022
+spec:
+  podSelector:
+    matchLabels:
+      ray-control-plane: "true"
+  policyTypes:
+    - Ingress
+  # No ingress rules => deny all ingress to the head pod except what the
+  # ray-dashboard-restrict-8265 policy explicitly allows (NetworkPolicies are
+  # additive/OR'd together).
+  ingress: []

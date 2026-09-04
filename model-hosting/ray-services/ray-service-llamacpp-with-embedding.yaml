@@ -179,7 +179,15 @@ spec:
     enableInTreeAutoscaling: true
     headGroupSpec:
       rayStartParams:
-        dashboard-host: '0.0.0.0'
+        # SECURITY (CVE-2023-48022 / "ShadowRay"): the Ray Dashboard/Jobs API has no
+        # authentication. Do NOT bind it to 0.0.0.0, which exposes the Jobs API (RCE)
+        # to every pod in the cluster and to anyone with `kubectl port-forward`.
+        # Bind to loopback so the dashboard is only reachable from inside the head pod.
+        # KubeRay's operator health checks reach the dashboard via localhost inside the
+        # pod, so this remains compatible with RayService readiness.
+        # NOTE: This must be paired with the NetworkPolicy (see ray-dashboard-networkpolicy.yaml)
+        # to enforce isolation at the network layer.
+        dashboard-host: '127.0.0.1'
         num-cpus: '0'
       template:
         metadata:
